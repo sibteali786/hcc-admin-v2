@@ -88,11 +88,12 @@ function MailingTable( {clientItem}) {
   useEffect(() => {
   setLoader(true);
   try {
+    const assignedToParam = `${user.user.firstName} ${user.user.secondName}`;
     axios.get(`${apiPath.prodPath}/api/clients/allNewLeads`, {
     params: {
       status: "Lead",
       researchStatus: "No Research Done",
-      assignedTo: `${user.user.firstName} ${user.user.secondName}`,
+      assignedTo: assignedToParam,
       fields: "clientName,email,companyName,phone,assignedTo,assignee,status",
       limit: 10,
       page: 1,
@@ -341,15 +342,6 @@ useEffect(() => {
                         )}
                       </TableBody>
                     </Table>
-                    {openBulkMailModal ? (
-                                <SendBulkEmailViaGmail
-                                  open={openBulkMailModal}
-                                  handleClose={() => setOpenBulkMailModal(false)}
-                                  emails={email}
-                                  newClients = {newClients}
-                                />
-                            ) : null}
-                            
                     </>
                     
                   )
@@ -361,6 +353,14 @@ useEffect(() => {
               </div>
             
             </div>
+            {openBulkMailModal ? (
+              <SendBulkEmailViaGmail
+                open={openBulkMailModal}
+                handleClose={() => setOpenBulkMailModal(false)}
+                emails={email}
+                newClients={newClients || []}
+              />
+            ) : null}
           </div>
           
         )}

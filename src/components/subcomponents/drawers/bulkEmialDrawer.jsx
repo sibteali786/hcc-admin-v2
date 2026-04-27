@@ -1,17 +1,22 @@
-import React, { useState, useRef, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import axios from "axios";
 import { apiPath } from "@/utils/routes";
 import Swal from "sweetalert2";
 import useAuthStore from "@/store/store";
-import { Drawer } from "@mui/material";
+import { Dialog } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function GmailToField({ contacts = [], initialRecipients = [], placeholder = "To:", onChange = () => {} }) {
+// ── Recipient chip input ──────────────────────────────────────────────────────
+function GmailToField({
+  contacts = [],
+  initialRecipients = [],
+  placeholder = "Add recipients…",
+  onChange = () => {},
+}) {
   const [recipients, setRecipients] = useState(() =>
-    (initialRecipients || []).map((r) => normalizeRecipient(r))
+    (initialRecipients || []).map(normalizeRecipient),
   );
   const [input, setInput] = useState("");
   const [open, setOpen] = useState(false);
@@ -19,15 +24,22 @@ function GmailToField({ contacts = [], initialRecipients = [], placeholder = "To
   const wrapperRef = useRef(null);
   const inputRef = useRef(null);
 
-  useEffect(() => onChange(recipients.map((r) => r.email ?? r.value)), [recipients]);
+  useEffect(
+    () => onChange(recipients.map((r) => r.email ?? r.value)),
+    [recipients],
+  );
 
   useEffect(() => {
-    if (!Array.isArray(initialRecipients) || initialRecipients.length === 0) return;
-
-    const normalized = initialRecipients.map((r) => normalizeRecipient(r));
+    if (!Array.isArray(initialRecipients) || initialRecipients.length === 0)
+      return;
+    const normalized = initialRecipients.map(normalizeRecipient);
     setRecipients((prev) => {
-      const existing = new Set(prev.map((r) => (r.email || r.value || "").toLowerCase()));
-      const toAdd = normalized.filter((r) => !existing.has((r.email || r.value || "").toLowerCase()));
+      const existing = new Set(
+        prev.map((r) => (r.email || r.value || "").toLowerCase()),
+      );
+      const toAdd = normalized.filter(
+        (r) => !existing.has((r.email || r.value || "").toLowerCase()),
+      );
       return toAdd.length ? [...prev, ...toAdd] : prev;
     });
   }, [initialRecipients]);
@@ -44,141 +56,331 @@ function GmailToField({ contacts = [], initialRecipients = [], placeholder = "To
   }, []);
 
   function normalizeRecipient(item) {
-    if (typeof item === "string") return { name: null, email: item, value: item, valid: EMAIL_REGEX.test(item) };
-    return { name: item.name || null, email: item.email || item.value, value: item.email || item.value, valid: EMAIL_REGEX.test(item.email || item.value) };
-  }
-
-  function addRecipientFromString(str) {
-    const parts = str.split(/[;,\n]/).map((s) => s.trim()).filter(Boolean);
-    if (!parts.length) return;
-    const newOnes = parts.map((p) => normalizeRecipient(p));
-    setRecipients((prev) => {
-      const existing = new Set(prev.map((r) => (r.email || r.value || "").toLowerCase()));
-      const toAdd = newOnes.filter((r) => !existing.has((r.email || r.value || "").toLowerCase()));
-      return [...prev, ...toAdd];
-    });
-    setInput("");
-    setOpen(false);
-  }
-
-  function addRecipient(rec) {
-    const r = normalizeRecipient(rec);
-    setRecipients((prev) => {
-      const existing = new Set(prev.map((x) => (x.email || x.value || "").toLowerCase()));
-      if (existing.has((r.email || r.value || "").toLowerCase())) return prev;
-      return [...prev, r];
-    });
-    setInput("");
-    setOpen(false);
-    inputRef.current && inputRef.current.focus();
-  }
-
-  function removeRecipient(index) {
-    setRecipients((prev) => prev.filter((_, i) => i !== index));
-  }
-
-  function handleInputKeyDown(e) {
-    const suggestions = filteredContacts(input);
-    if (e.key === "Enter") {
-      e.preventDefault();
-      if (open && suggestions.length > 0) {
-        addRecipient(suggestions[highlight]);
-      } else if (input.trim()) {
-        addRecipientFromString(input.trim());
-      }
-      return;
-    }
-    if (e.key === "," || e.key === ";") {
-      e.preventDefault();
-      if (input.trim()) addRecipientFromString(input);
-      return;
-    }
-    if (e.key === "Backspace" && input === "") {
-      if (recipients.length > 0) setRecipients((prev) => prev.slice(0, -1));
-      return;
-    }
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      if (!open) setOpen(true);
-      setHighlight((h) => Math.min(h + 1, Math.max(0, suggestions.length - 1)));
-      return;
-    }
-    if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setHighlight((h) => Math.max(0, h - 1));
-      return;
-    }
-    if (e.key === "Escape") {
-      setOpen(false);
-      return;
-    }
+    if (typeof item === "string")
+      return {
+        name: null,
+        email: item,
+        value: item,
+        valid: EMAIL_REGEX.test(item),
+      };
+    return {
+      name: item.name || null,
+      email: item.email || item.value,
+      value: item.email || item.value,
+      valid: EMAIL_REGEX.test(item.email || item.value),
+    };
   }
 
   function filteredContacts(q) {
-    if (!q || q.trim() === "") return contacts.slice(0, 6);
-    const s = q.toLowerCase();
-    return contacts.filter((c) =>
-      (c.email && c.email.toLowerCase().includes(s)) || (c.name && c.name.toLowerCase().includes(s))
-    ).slice(0, 6);
+    if (!q) return contacts.slice(0, 8);
+    const lower = q.toLowerCase();
+    return contacts
+      .filter(
+        (c) =>
+          c.email?.toLowerCase().includes(lower) ||
+          c.name?.toLowerCase().includes(lower),
+      )
+      .slice(0, 8);
+  }
+
+  function addRecipient(item) {
+    const n = normalizeRecipient(item);
+    setRecipients((prev) => {
+      const exists = prev.some(
+        (r) =>
+          (r.email || r.value || "").toLowerCase() ===
+          (n.email || "").toLowerCase(),
+      );
+      return exists ? prev : [...prev, n];
+    });
+    setInput("");
+    setOpen(false);
+  }
+
+  function removeRecipient(i) {
+    setRecipients((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  function handleInputKeyDown(e) {
+    const filtered = filteredContacts(input);
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlight((h) => Math.min(h + 1, filtered.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlight((h) => Math.max(h - 1, 0));
+    } else if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      if (filtered.length && open) addRecipient(filtered[highlight]);
+      else if (input.trim()) addRecipient(input.trim());
+    } else if (e.key === "Backspace" && !input && recipients.length) {
+      removeRecipient(recipients.length - 1);
+    }
   }
 
   function handlePaste(e) {
-    const text = (e.clipboardData || window.clipboardData).getData("text");
-    if (!text) return;
-    if (/[;,\n]/.test(text)) {
+    const text = e.clipboardData.getData("text");
+    const emails = text
+      .split(/[,;\s]+/)
+      .map((s) => s.trim())
+      .filter((s) => EMAIL_REGEX.test(s));
+    if (emails.length) {
       e.preventDefault();
-      addRecipientFromString(text);
+      emails.forEach((em) => addRecipient(em));
     }
   }
 
   return (
-    <div className="w-full">
-      <div ref={wrapperRef} className="border rounded p-2 flex flex-wrap items-center gap-1 min-h-[46px] bg-[#191526]" onClick={() => inputRef.current && inputRef.current.focus()}>
+    <div ref={wrapperRef} style={{ position: "relative" }}>
+      <div
+        onClick={() => inputRef.current?.focus()}
+        style={{
+          minHeight: 42,
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 4,
+          padding: "6px 10px",
+          background: "rgba(20,15,43,0.7)",
+          border: "1px solid rgba(69,44,149,0.5)",
+          borderRadius: 10,
+          cursor: "text",
+          transition: "border .15s",
+        }}
+        onFocus={(e) => (e.currentTarget.style.borderColor = "#B797FF")}
+        onBlur={(e) =>
+          (e.currentTarget.style.borderColor = "rgba(69,44,149,0.5)")
+        }
+      >
         {recipients.map((r, i) => (
-          <div key={`${r.value}-${i}`} className={`flex items-center text-sm text-black rounded-full px-3 py-1 border ${r.valid ? 'bg-gray-100 border-gray-200' : 'bg-red-50 border-red-200'}`}>
-            <span className="truncate max-w-[18rem] mr-2">
-              {r.name ? `${r.name} ` : ''}
-              {r.name ? <span className="text-black-600">&lt;{r.email}&gt;</span> : r.email}
-            </span>
-            <button aria-label={`Remove ${r.value}`} onClick={() => removeRecipient(i)} className="text-gray-500 hover:text-gray-700 ml-1">×</button>
-          </div>
+          <span
+            key={i}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              padding: "2px 8px",
+              borderRadius: 999,
+              fontSize: 12,
+              fontWeight: 500,
+              background: r.valid
+                ? "rgba(127,86,217,0.25)"
+                : "rgba(248,113,113,0.2)",
+              border: `1px solid ${r.valid ? "rgba(127,86,217,0.5)" : "rgba(248,113,113,0.5)"}`,
+              color: r.valid ? "#E1C9FF" : "#FCA5A5",
+            }}
+          >
+            {r.name ? `${r.name} <${r.email}>` : r.email}
+            <button
+              onClick={() => removeRecipient(i)}
+              style={{
+                background: "none",
+                border: "none",
+                color: "inherit",
+                cursor: "pointer",
+                padding: 0,
+                lineHeight: 1,
+                fontSize: 13,
+              }}
+            >
+              ×
+            </button>
+          </span>
         ))}
-
         <input
           ref={inputRef}
           value={input}
-          onChange={(e) => { setInput(e.target.value); setOpen(true); }}
+          onChange={(e) => {
+            setInput(e.target.value);
+            setOpen(true);
+          }}
           onKeyDown={handleInputKeyDown}
           onPaste={handlePaste}
           placeholder={recipients.length === 0 ? placeholder : undefined}
-          className="flex-1 min-w-[160px] outline-none p-1 text-sm bg-transparent"
+          style={{
+            flex: 1,
+            minWidth: 140,
+            outline: "none",
+            background: "transparent",
+            color: "#F5F0FF",
+            fontSize: 13.5,
+            border: "none",
+            padding: "2px 0",
+          }}
         />
       </div>
-
-      {open && (
-        <div className="relative mt-1 z-50">
-          <ul className="absolute bg-white border rounded w-full max-h-56 overflow-auto shadow-md text-black">
-            {filteredContacts(input).length === 0 ? (
-              <li className="p-2 text-sm text-gray-500">No matches. Press Enter to add "{input}"</li>
-            ) : (
-              filteredContacts(input).map((c, idx) => (
-                <li key={c.email} onMouseDown={(ev) => { ev.preventDefault(); addRecipient(c); }} onMouseEnter={() => setHighlight(idx)} className={`p-2 cursor-pointer flex items-center justify-between ${idx === highlight ? 'bg-blue-50' : ''}`}>
-                  <div className="text-sm">
-                    <div className="font-medium">{c.name || c.email}</div>
-                    <div className="text-xs text-gray-500">{c.email}</div>
-                  </div>
-                </li>
-              ))
-            )}
-          </ul>
+      {open && filteredContacts(input).length > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            right: 0,
+            zIndex: 100,
+            background: "#1B1539",
+            border: "1px solid rgba(69,44,149,0.6)",
+            borderRadius: 10,
+            overflow: "hidden",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+          }}
+        >
+          {filteredContacts(input).map((c, idx) => (
+            <div
+              key={c.email}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                addRecipient(c);
+              }}
+              onMouseEnter={() => setHighlight(idx)}
+              style={{
+                padding: "10px 14px",
+                cursor: "pointer",
+                fontSize: 13,
+                background:
+                  idx === highlight ? "rgba(127,86,217,0.2)" : "transparent",
+                borderBottom: "1px solid rgba(69,44,149,0.2)",
+              }}
+            >
+              <div style={{ fontWeight: 500, color: "#F5F0FF" }}>
+                {c.name || c.email}
+              </div>
+              <div style={{ fontSize: 11, color: "#A99BD4" }}>{c.email}</div>
+            </div>
+          ))}
         </div>
       )}
     </div>
   );
 }
-export default function SendBulkEmailViaGmail({ open, handleClose, emails = [], newClients }) {
+
+// ── Drag-and-drop attachment zone ─────────────────────────────────────────────
+function AttachmentZone({ attachments, setAttachments }) {
+  const [dragging, setDragging] = useState(false);
+  const fileRef = useRef(null);
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragging(false);
+    const files = Array.from(e.dataTransfer.files || []);
+    setAttachments((prev) => [...prev, ...files]);
+  };
+
+  const handleFileChange = (e) => {
+    const files = Array.from(e.target.files || []);
+    setAttachments((prev) => [...prev, ...files]);
+  };
+
+  const formatSize = (bytes) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  return (
+    <div>
+      <div
+        onClick={() => fileRef.current?.click()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={handleDrop}
+        style={{
+          border: `2px dashed ${dragging ? "#B797FF" : "rgba(127,86,217,0.4)"}`,
+          borderRadius: 12,
+          padding: "20px 16px",
+          textAlign: "center",
+          cursor: "pointer",
+          transition: "all .2s",
+          background: dragging ? "rgba(127,86,217,0.08)" : "rgba(20,15,43,0.4)",
+        }}
+      >
+        <input
+          ref={fileRef}
+          type="file"
+          multiple
+          style={{ display: "none" }}
+          onChange={handleFileChange}
+        />
+        <div style={{ fontSize: 22, marginBottom: 6 }}>⊕</div>
+        <div style={{ fontSize: 13, color: "#A99BD4" }}>
+          Drag files here or{" "}
+          <span style={{ color: "#B797FF", textDecoration: "underline" }}>
+            browse
+          </span>
+        </div>
+        <div style={{ fontSize: 11, color: "#6F618F", marginTop: 4 }}>
+          PDF, images, docs — any format
+        </div>
+      </div>
+
+      {attachments.length > 0 && (
+        <div
+          style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}
+        >
+          {attachments.map((file, i) => (
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "6px 10px",
+                borderRadius: 8,
+                background: "rgba(20,15,43,0.6)",
+                border: "1px solid rgba(127,86,217,0.3)",
+                fontSize: 12,
+                color: "#E1C9FF",
+              }}
+            >
+              <span>📎</span>
+              <span
+                style={{
+                  maxWidth: 160,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {file.name}
+              </span>
+              <span style={{ color: "#6F618F", fontSize: 11 }}>
+                {formatSize(file.size)}
+              </span>
+              <button
+                onClick={() =>
+                  setAttachments((prev) => prev.filter((_, idx) => idx !== i))
+                }
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#6F618F",
+                  cursor: "pointer",
+                  fontSize: 14,
+                  lineHeight: 1,
+                  padding: 0,
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main drawer ───────────────────────────────────────────────────────────────
+export default function SendBulkEmailViaGmail({
+  open,
+  handleClose,
+  emails = [],
+  newClients,
+}) {
   const user = useAuthStore((state) => state.user);
   const [body, setBody] = useState("");
+  const [templateBody, setTemplateBody] = useState("");
   const [to, setTo] = useState(emails || []);
   const [subject, setSubject] = useState("");
   const [templateId, setTemplateId] = useState("");
@@ -189,15 +391,17 @@ export default function SendBulkEmailViaGmail({ open, handleClose, emails = [], 
   const [contactLists, setContactLists] = useState([]);
   const [selectedContactListId, setSelectedContactListId] = useState("");
   const [listRecipients, setListRecipients] = useState([]);
-  
-  // newClients.map((item) => {
-  //   setTo((prev) => [...prev, item.email]);
-  // });
+  const [sending, setSending] = useState(false);
 
   const hccEmail = user?.user?.hccEmail || " ";
   const id = user?.user?._id;
   const senderName = `${user?.user?.firstName} ${user?.user?.secondName}`;
   const senderTitle = user?.user?.title || "Business Growth Consultant";
+
+  // Selected template object for preview
+  const selectedTemplate = templateData.find(
+    (t) => t.value === (templateId?.value || templateId),
+  );
 
   useEffect(() => {
     if (!id) return;
@@ -205,34 +409,46 @@ export default function SendBulkEmailViaGmail({ open, handleClose, emails = [], 
     async function templateOptions() {
       try {
         const res = await axios.get(`${apiPath.prodPath3}/api/templates`);
-        const templateArr = Array.isArray(res.data) ? res.data : res.data?.data || [];
-        const options = templateArr.map((it) => ({ label: it.name || it.id, value: it.id, id: it.id, name: it.name, description: it.description }));
-        setTemplateData(options);
+        const templateArr = Array.isArray(res.data)
+          ? res.data
+          : res.data?.data || [];
+        setTemplateData(
+          templateArr.map((it) => ({
+            label: it.name || it.id,
+            value: it._id || it.id,
+            id: it._id || it.id,
+            name: it.name,
+            description: it.description,
+          })),
+        );
       } catch (err) {
         console.error(err);
       }
     }
-    templateOptions();
 
     async function loadContacts() {
       try {
-        const r = await axios.get(`${apiPath.prodPath}/api/clients/allNewLeads`);
+        const r = await axios.get(
+          `${apiPath.prodPath}/api/clients/allNewLeads`,
+        );
         const rows = Array.isArray(r.data) ? r.data : r.data?.data || [];
-        const mapped = rows
-          .filter((client) => client?.email)
-          .map((client) => ({
-            email: client.email,
-            name: client.clientName || client.name || "",
-            value: client.email,
-          }));
-        setContacts(mapped);
-      } catch (err) {
-      }
+        setContacts(
+          rows
+            .filter((c) => c?.email)
+            .map((c) => ({
+              email: c.email,
+              name: c.clientName || c.name || "",
+              value: c.email,
+            })),
+        );
+      } catch (err) {}
     }
 
     async function loadContactLists() {
       try {
-        const r = await axios.get(`${apiPath.prodPath3}/api/contact-lists/${id}`);
+        const r = await axios.get(
+          `${apiPath.prodPath3}/api/contact-lists/${id}`,
+        );
         const rows = Array.isArray(r.data) ? r.data : r.data?.data || [];
         setContactLists(rows);
       } catch (err) {
@@ -240,77 +456,81 @@ export default function SendBulkEmailViaGmail({ open, handleClose, emails = [], 
       }
     }
 
+    templateOptions();
     loadContacts();
     loadContactLists();
   }, [id]);
 
   useEffect(() => {
     if (!selectedContactListId || !id) return;
-
     async function loadMembers() {
       try {
         const r = await axios.get(
-          `${apiPath.prodPath3}/api/contact-lists/${id}/${selectedContactListId}/members`
+          `${apiPath.prodPath3}/api/contact-lists/${id}/${selectedContactListId}/members`,
         );
         const members = r.data?.data?.members || [];
-        const recipientEmails = members.map((member) => member?.email).filter(Boolean);
-        setListRecipients(recipientEmails);
+        setListRecipients(members.map((m) => m?.email).filter(Boolean));
       } catch (err) {
         setListRecipients([]);
         Swal.fire("Error", "Failed to load members for selected list", "error");
       }
     }
-
     loadMembers();
   }, [selectedContactListId, id]);
 
-  const handleFileChange = (e) => {
-    const files = Array.from(e.target.files || []);
-    setAttachments((prev) => [...prev, ...files]);
-  };
-
   const handleUpload = async () => {
-    try {
-      if (!id) {
-        Swal.fire("Error", "User is not available in session", "error");
-        return;
-      }
-      if (!to || (Array.isArray(to) && to.length === 0)) {
-        Swal.fire("Warning", "Please add at least one recipient", "warning");
-        return;
-      }
+    if (!id) {
+      Swal.fire("Error", "User not found in session", "error");
+      return;
+    }
+    if (!to || (Array.isArray(to) && to.length === 0)) {
+      Swal.fire("Warning", "Please add at least one recipient", "warning");
+      return;
+    }
+    if (!subject.trim()) {
+      Swal.fire("Warning", "Please add a subject", "warning");
+      return;
+    }
 
+    setSending(true);
+    try {
       const firstRecipient = Array.isArray(to) ? to[0] : to;
-      let templateData2 = {
+      const templateData2 = {
         title: "Good Day From Hill Country",
         recipientName: firstRecipient || "",
-        body: body,
+        body,
         additionalText: "Thank You for your Time",
-        senderName: senderName,
-        senderTitle: senderTitle,
+        senderName,
+        senderTitle,
         companyName: "Hill Country Coders",
         companyAddress: "Cedar Park Texas USA",
         companyWebsite: "https://www.hillcountrycoders.com",
       };
 
       const formData = new FormData();
-      if (Array.isArray(to)) {
-        formData.append("recipients", JSON.stringify(to));
-      } else if (typeof to === "string") {
-        formData.append("recipients", to);
-      }
+      formData.append(
+        "recipients",
+        Array.isArray(to) ? JSON.stringify(to) : to,
+      );
       formData.append("subject", subject);
       formData.append("body", body);
       formData.append("service", service);
-      if (templateId?.value) formData.append("templateId", templateId.value);
+      if (templateId?.value || templateId)
+        formData.append("templateId", templateId?.value || templateId);
+      if (selectedContactListId)
+        formData.append("contactListId", selectedContactListId);
       formData.append("templateData", JSON.stringify(templateData2));
       attachments.forEach((file) => formData.append("attachments", file));
 
-      const response = await axios.post(`${apiPath.prodPath3}/api/bulkEmail/sendBulkEmail/${id}`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      console.log(response.data);
-      Swal.fire("Sent", "Email sent successfully", "success");
+      await axios.post(
+        `${apiPath.prodPath3}/api/bulkEmail/sendBulkEmail/${id}`,
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        },
+      );
+
+      Swal.fire("Launched", "Bulk campaign queued successfully", "success");
       setBody("");
       setSubject("");
       setTemplateId("");
@@ -320,85 +540,235 @@ export default function SendBulkEmailViaGmail({ open, handleClose, emails = [], 
       setListRecipients([]);
       handleClose();
     } catch (error) {
-      console.error("Error sending email:", error);
+      console.error(error);
       Swal.fire("Error", "Failed to send email", "error");
+    } finally {
+      setSending(false);
     }
   };
 
-  function handleToChange(list) {
-    setTo(list.map((s) => String(s)));
+  const handleSendTest = async () => {
+    if (!hccEmail || hccEmail.trim() === " ") {
+      Swal.fire("Warning", "No sender email found", "warning");
+      return;
+    }
+    Swal.fire("Info", `Test email would be sent to ${hccEmail}`, "info");
+  };
+
+  const inputStyle = {
+    background: "rgba(20,15,43,0.7)",
+    border: "1px solid rgba(69,44,149,0.5)",
+    borderRadius: 10,
+    padding: "10px 13px",
+    color: "#F5F0FF",
+    fontSize: 13.5,
+    outline: "none",
+    width: "100%",
+    transition: "border .15s",
+    fontFamily: "inherit",
+  };
+
+  const labelStyle = {
+    fontSize: 11,
+    fontWeight: 600,
+    color: "#A99BD4",
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+    marginBottom: 5,
+    display: "block",
+  };
+
+  const recipientCount = Array.isArray(to) ? to.length : to ? 1 : 0;
+  const selectedListName = contactLists.find(
+    (l) => l._id === selectedContactListId,
+  )?.name;
+
+  async function fetchTemplateBody(templateIdValue) {
+    if (!templateIdValue) {
+      setTemplateBody("");
+      return;
+    }
+    try {
+      const r = await axios.get(
+        `${apiPath.prodPath3}/api/templates/${templateIdValue}`,
+      );
+      setTemplateBody(r.data?.data?.body || "");
+    } catch (err) {
+      setTemplateBody("");
+    }
   }
 
   return (
-    <>
-      <Drawer
-        className="bg-all-modals"
-        anchor="left"
-        open={open}
-        onClose={handleClose}
-        PaperProps={{
-          sx: {
-            width: "1142px",
-            height: "dvh",
-            position: "absolute",
-            left: "50%",
-            top: "50%",
-            transform: "translate(-50%, -50%)",
-            borderRadius: "16px",
-            boxShadow: 3,
-            marginTop: "30px",
-            marginBottom: "30px",
-          },
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      maxWidth={false}
+      PaperProps={{
+        sx: {
+          width: "96vw",
+          maxWidth: "1280px",
+          height: "92vh",
+          borderRadius: "20px",
+          backgroundColor: "transparent",
+          overflow: "hidden",
+          m: 0,
+          boxShadow: "0 40px 80px -20px rgba(0,0,0,0.8)",
+        },
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          height: "100%",
+          background: "linear-gradient(160deg, #2D245B 0%, #1B1539 100%)",
+          border: "1px solid rgba(127,86,217,0.35)",
+          borderRadius: 20,
+          fontFamily: "'General Sans', system-ui, sans-serif",
+          color: "#F5F0FF",
         }}
       >
-        <div className="p-10 flex flex-col bg-[#2D245B] flex-wrap">
-          <div className="flex flex-row justify-end">
-            <CloseIcon className="text-2xl hover:cursor-pointer" onClick={() => handleClose()} />
+        {/* ── Header ── */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "18px 28px 14px",
+            borderBottom: "1px solid rgba(127,86,217,0.2)",
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                background: "linear-gradient(135deg, #7F56D9, #4A2CA0)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 16,
+              }}
+            >
+              ✉
+            </div>
+            <div>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: 17,
+                  fontWeight: 600,
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                Send Bulk Campaign
+              </p>
+              <p style={{ margin: 0, fontSize: 12, color: "#A99BD4" }}>
+                {recipientCount > 0
+                  ? `${recipientCount} recipient${recipientCount !== 1 ? "s" : ""}${selectedListName ? ` · ${selectedListName}` : ""}`
+                  : "Add recipients or select a contact list"}
+              </p>
+            </div>
           </div>
-          <h1 className="text-white font-satoshi text-2xl font-bold mb-5">Email</h1>
-          <div className="space-y-4 mt-4">
-            <div className="flex flex-row gap-4 w-full items-center justify-between pb-6 border-b-[1px] border-[#7F56D9]">
-              <div className="flex flex-col gap-2 w-1/2">
-                <label className="font-satoshi text-md">From</label>
-                <p className="p-2 border-[#452C95] rounded-[8px] focus-within:outline-none border-[1px] bg-[#191526]" name="note">{hccEmail}</p>
-              </div>
+          <button
+            onClick={handleClose}
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 8,
+              border: "1px solid rgba(127,86,217,0.35)",
+              background: "rgba(127,86,217,0.08)",
+              color: "#E1C9FF",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+            }}
+          >
+            <CloseIcon style={{ fontSize: 16 }} />
+          </button>
+        </div>
 
-              <div className="flex flex-col gap-2 w-1/2">
-                <label className="font-satoshi text-md">To</label>
-                <GmailToField
-                  contacts={contacts}
-                  initialRecipients={[
-                    ...(newClients || []).map((client) => client.email).filter(Boolean),
-                    ...listRecipients,
-                  ]}
-                  onChange={handleToChange}
-                />
-              </div>
-
-              <div className="flex flex-col gap-2 w-full">
-                <label className="font-satoshi text-md">Subject</label>
-                <input type="text" value={subject} className="p-2 border-[#452C95] rounded-[8px] focus-within:outline-none border-[1px] bg-[#191526]" onChange={(e) => setSubject(e.target.value)} name="subject" />
+        {/* ── Body: two-panel layout ── */}
+        <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+          {/* LEFT: compose */}
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              borderRight: "1px solid rgba(127,86,217,0.2)",
+              minWidth: 0,
+              overflowY: "auto",
+              padding: "20px 28px",
+              gap: 18,
+            }}
+          >
+            {/* From */}
+            <div>
+              <label style={labelStyle}>From</label>
+              <div
+                style={{ ...inputStyle, cursor: "default", color: "#A99BD4" }}
+              >
+                {hccEmail}
               </div>
             </div>
 
-            <div className="flex flex-row gap-4 w-full items-center justify-between pb-6 border-b-[1px] border-[#7F56D9]">
-              <div className="flex flex-col gap-2 w-1/2">
-                <label className="font-satoshi text-md">Service</label>
+            {/* To */}
+            <div>
+              <label style={labelStyle}>To</label>
+              <GmailToField
+                contacts={contacts}
+                initialRecipients={[
+                  ...(newClients || []).map((c) => c.email).filter(Boolean),
+                  ...listRecipients,
+                ]}
+                onChange={(list) => setTo(list.map(String))}
+              />
+            </div>
+
+            {/* Subject */}
+            <div>
+              <label style={labelStyle}>Subject</label>
+              <input
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                placeholder="Your subject line…"
+                style={inputStyle}
+                onFocus={(e) => (e.target.style.borderColor = "#B797FF")}
+                onBlur={(e) =>
+                  (e.target.style.borderColor = "rgba(69,44,149,0.5)")
+                }
+              />
+            </div>
+
+            {/* Service + Contact List row */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 14,
+              }}
+            >
+              <div>
+                <label style={labelStyle}>Service</label>
                 <select
                   value={service}
                   onChange={(e) => setService(e.target.value)}
-                  className="p-2 rounded-[8px] bg-[#191526] border-[#452C95] text-white"
+                  style={{ ...inputStyle, cursor: "pointer" }}
                 >
                   <option value="gmail">Gmail</option>
                   <option value="sendgrid">SendGrid</option>
                 </select>
               </div>
-              <div className="flex flex-col gap-2 w-1/2">
-                <label className="font-satoshi text-md">Contact List</label>
+              <div>
+                <label style={labelStyle}>Contact List</label>
                 <select
                   value={selectedContactListId}
                   onChange={(e) => setSelectedContactListId(e.target.value)}
-                  className="p-2 rounded-[8px] bg-[#191526] border-[#452C95] text-white"
+                  style={{ ...inputStyle, cursor: "pointer" }}
                 >
                   <option value="">Select Contact List</option>
                   {contactLists.map((list) => (
@@ -410,32 +780,308 @@ export default function SendBulkEmailViaGmail({ open, handleClose, emails = [], 
               </div>
             </div>
 
-            <div className="flex flex-row gap-4 w-full items-center justify-between pb-6 border-b-[1px] border-[#7F56D9]">
-              <div className="flex flex-col gap-2 w-full">
-                <label htmlFor="body">Body</label>
-                <textarea id="body" name="body" value={body} onChange={(e) => setBody(e.target.value)} className="p-2 border-[#452C95] rounded-[8px] focus-within:outline-none border-[1px] bg-[#191526]" />
+            {/* Template */}
+            <div>
+              <label style={labelStyle}>Template</label>
+              <select
+                value={templateId?.value || templateId || ""}
+                onChange={(e) => {
+                  setTemplateId(e.target.value);
+                  fetchTemplateBody(e.target.value);
+                }}
+                style={{ ...inputStyle, cursor: "pointer" }}
+              >
+                <option value="">— No template (write body below) —</option>
+                {templateData.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Body */}
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Body (HTML)</label>
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder={
+                  templateId
+                    ? "Leave blank to use template body, or override here…"
+                    : "Write your email body or paste HTML…"
+                }
+                style={{
+                  ...inputStyle,
+                  resize: "none",
+                  minHeight: 140,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: 12.5,
+                  lineHeight: 1.6,
+                }}
+                onFocus={(e) => (e.target.style.borderColor = "#B797FF")}
+                onBlur={(e) =>
+                  (e.target.style.borderColor = "rgba(69,44,149,0.5)")
+                }
+              />
+            </div>
+
+            {/* Attachments */}
+            <div>
+              <label style={labelStyle}>Attachments</label>
+              <AttachmentZone
+                attachments={attachments}
+                setAttachments={setAttachments}
+              />
+            </div>
+          </div>
+
+          {/* RIGHT: preview + meta */}
+          <div
+            style={{
+              width: 320,
+              flexShrink: 0,
+              display: "flex",
+              flexDirection: "column",
+              background: "rgba(20,15,43,0.4)",
+              overflowY: "auto",
+              padding: "20px 20px",
+              gap: 18,
+            }}
+          >
+            <div>
+              <label style={labelStyle}>Live Preview</label>
+              <div
+                style={{
+                  background: "#fff",
+                  borderRadius: 10,
+                  overflow: "hidden",
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+                  minHeight: 200,
+                  position: "relative",
+                }}
+              >
+                {body || templateBody ? (
+                  <>
+                    <div
+                      style={{
+                        width: "100%",
+                        height: 220,
+                        overflow: "hidden",
+                        position: "relative",
+                      }}
+                    >
+                      <iframe
+                        srcDoc={body || templateBody || ""}
+                        style={{
+                          width: "600px",
+                          height: "800px",
+                          border: "none",
+                          display: "block",
+                          transform: "scale(0.46)",
+                          transformOrigin: "top left",
+                          pointerEvents: "none",
+                        }}
+                        title="Preview"
+                        sandbox="allow-same-origin"
+                      />
+                    </div>
+                    <button
+                      onClick={() =>
+                        window.open(
+                          URL.createObjectURL(
+                            new Blob([body || templateBody], {
+                              type: "text/html",
+                            }),
+                          ),
+                          "_blank",
+                        )
+                      }
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        padding: "8px",
+                        background: "rgba(127,86,217,0.15)",
+                        border: "none",
+                        borderTop: "1px solid rgba(127,86,217,0.2)",
+                        color: "#B797FF",
+                        fontSize: 11.5,
+                        cursor: "pointer",
+                        fontWeight: 500,
+                      }}
+                    >
+                      ↗ Open full preview
+                    </button>
+                  </>
+                ) : (
+                  <div
+                    style={{
+                      padding: 24,
+                      textAlign: "center",
+                      color: "#999",
+                      fontSize: 12,
+                    }}
+                  >
+                    <div style={{ fontSize: 24, marginBottom: 8 }}>✦</div>
+                    Preview appears once you add a body or select a template
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="flex flex-row gap-4 w-full items-center justify-between pb-6 border-b-[1px] border-[#7F56D9]">
-              <div className="flex flex-col gap-2 w-1/2">
-                <label className="font-satoshi text-md">Files</label>
-                <input type="file" multiple className="p-2 border-[#452C95] rounded-[8px] focus-within:outline-none border-[1px] bg-[#191526]" onChange={handleFileChange} name="Files" />
+            {/* Campaign summary */}
+            <div
+              style={{
+                background: "rgba(127,86,217,0.08)",
+                border: "1px solid rgba(127,86,217,0.25)",
+                borderRadius: 12,
+                padding: 14,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 11,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  color: "#6F618F",
+                  marginBottom: 10,
+                }}
+              >
+                Summary
               </div>
-
-              <div className="flex flex-col gap-2 w-1/2">
-                <label htmlFor="taskStatus">Template</label>
-                <select value={templateId?.value || ""} onChange={(e) => setTemplateId({ value: e.target.value })} className="p-2 rounded-[8px] bg-[#191526] border-[#452C95] text-white">
-                  <option value="">Select Template</option>
-                  {templateData.map((t) => (<option key={t.value} value={t.value}>{t.label}</option>))}
-                </select>
-              </div>
+              {[
+                [
+                  "Recipients",
+                  recipientCount > 0
+                    ? `${recipientCount} contact${recipientCount !== 1 ? "s" : ""}`
+                    : "None added",
+                ],
+                ["Service", service === "sendgrid" ? "SendGrid" : "Gmail"],
+                ["List", selectedListName || "Manual recipients"],
+                ["Template", selectedTemplate?.label || "None"],
+                [
+                  "Attachments",
+                  attachments.length > 0
+                    ? `${attachments.length} file${attachments.length !== 1 ? "s" : ""}`
+                    : "None",
+                ],
+              ].map(([k, v]) => (
+                <div
+                  key={k}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: 12.5,
+                    marginBottom: 7,
+                  }}
+                >
+                  <span style={{ color: "#A99BD4" }}>{k}</span>
+                  <span style={{ color: "#F5F0FF", fontWeight: 500 }}>{v}</span>
+                </div>
+              ))}
             </div>
 
-            <Button onClick={handleUpload} className="w-full bg-[#B797FF]">Send Email</Button>
+            {/* Activity note */}
+            <div
+              style={{
+                background: "rgba(74,222,128,0.06)",
+                border: "1px solid rgba(74,222,128,0.2)",
+                borderRadius: 10,
+                padding: "10px 13px",
+                fontSize: 11.5,
+                color: "#86EFAC",
+                lineHeight: 1.5,
+              }}
+            >
+              <strong>Activity logging</strong>
+              <br />
+              Each send will be recorded as a bulk job. Monitor progress in the
+              Bulk Jobs tab.
+            </div>
           </div>
         </div>
-      </Drawer>
-    </>
+
+        {/* ── Footer ── */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "14px 28px",
+            borderTop: "1px solid rgba(127,86,217,0.2)",
+            flexShrink: 0,
+            background: "rgba(20,15,43,0.4)",
+          }}
+        >
+          <div style={{ fontSize: 12, color: "#6F618F" }}>
+            {recipientCount > 0
+              ? `Launching to ${recipientCount} recipient${recipientCount !== 1 ? "s" : ""} via ${service === "sendgrid" ? "SendGrid" : "Gmail"}`
+              : "No recipients selected yet"}
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={() => {
+                setBody("");
+                setSubject("");
+                setTemplateId("");
+                setAttachments([]);
+                setTo([]);
+                setSelectedContactListId("");
+                setListRecipients([]);
+                handleClose();
+              }}
+              style={{
+                padding: "9px 16px",
+                borderRadius: 10,
+                border: "1px solid rgba(127,86,217,0.35)",
+                background: "rgba(127,86,217,0.08)",
+                color: "#E1C9FF",
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSendTest}
+              style={{
+                padding: "9px 16px",
+                borderRadius: 10,
+                border: "1px solid rgba(127,86,217,0.35)",
+                background: "rgba(127,86,217,0.08)",
+                color: "#E1C9FF",
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: "pointer",
+              }}
+            >
+              Send test to me
+            </button>
+            <button
+              onClick={handleUpload}
+              disabled={sending}
+              style={{
+                padding: "9px 22px",
+                borderRadius: 10,
+                border: "none",
+                background: sending
+                  ? "rgba(127,86,217,0.3)"
+                  : "linear-gradient(180deg,#9B74F0,#6B42C8)",
+                color: "white",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: sending ? "not-allowed" : "pointer",
+                boxShadow: sending
+                  ? "none"
+                  : "0 6px 20px -6px rgba(127,86,217,0.7)",
+              }}
+            >
+              {sending ? "Launching…" : "🚀 Launch Campaign"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Dialog>
   );
 }
