@@ -377,6 +377,7 @@ export default function SendBulkEmailViaGmail({
   handleClose,
   emails = [],
   newClients,
+  preselectedListId = "",
 }) {
   const user = useAuthStore((state) => state.user);
   const [body, setBody] = useState("");
@@ -477,6 +478,12 @@ export default function SendBulkEmailViaGmail({
     }
     loadMembers();
   }, [selectedContactListId, id]);
+
+  useEffect(() => {
+    if (preselectedListId && open) {
+      setSelectedContactListId(preselectedListId);
+    }
+  }, [open, preselectedListId]);
 
   const handleUpload = async () => {
     if (!id) {

@@ -18,6 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import NewContactListDrawer from "../drawers/newContactListDrawer";
+import SendBulkEmailViaGmail from "../drawers/bulkEmialDrawer";
 
 export default function ContactListsTable() {
   const user = useAuthStore((state) => state.user);
@@ -26,6 +27,8 @@ export default function ContactListsTable() {
   const [contactLists, setContactLists] = useState([]);
   const [loading, setLoading] = useState(false);
   const [openCreateDrawer, setOpenCreateDrawer] = useState(false);
+  const [bulkDrawerOpen, setBulkDrawerOpen] = useState(false);
+  const [selectedList, setSelectedList] = useState(null);
 
   const fetchLists = useCallback(async () => {
     if (!userId) return;
@@ -79,6 +82,7 @@ export default function ContactListsTable() {
                 <TableHead className="text-[#E1C9FF]">Description</TableHead>
                 <TableHead className="text-[#E1C9FF]">Members</TableHead>
                 <TableHead className="text-[#E1C9FF]">Created</TableHead>
+                <TableHead className="text-[#E1C9FF]">Bulk Send</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -99,6 +103,17 @@ export default function ContactListsTable() {
                   <TableCell className="font-satoshi font-medium text-[#E1C9FF]">
                     {list.createdAt ? moment(list.createdAt).format("MMM DD, YYYY") : "-"}
                   </TableCell>
+                  <TableCell>
+                    <Button
+                      className="bg-[#452C95] text-white hover:opacity-80 text-xs px-3 py-1"
+                      onClick={() => {
+                        setSelectedList(list);
+                        setBulkDrawerOpen(true);
+                      }}
+                    >
+                      Send Bulk
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -111,6 +126,18 @@ export default function ContactListsTable() {
         handleClose={() => setOpenCreateDrawer(false)}
         refreshData={fetchLists}
       />
+      {bulkDrawerOpen && selectedList && (
+        <SendBulkEmailViaGmail
+          open={bulkDrawerOpen}
+          handleClose={() => {
+            setBulkDrawerOpen(false);
+            setSelectedList(null);
+          }}
+          emails={[]}
+          newClients={[]}
+          preselectedListId={selectedList._id}
+        />
+      )}
     </div>
   );
 }

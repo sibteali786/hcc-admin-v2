@@ -8,19 +8,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import MoreVertIcon from "@mui/icons-material/MoreVert";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import Pagination from "@mui/material/Pagination";
 import moment from "moment";
 import MailDetails from "../drawers/mailOpen";
 import { Button } from "@/components/ui/button";
+import ReplyIcon from "@mui/icons-material/Reply";
+import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 
 function InboxTable({ picklistData, refreshData, picklistName }) {
   const [empId, setEmpId] = useState("");
@@ -107,18 +100,65 @@ function InboxTable({ picklistData, refreshData, picklistName }) {
                   key={i.id}
                 >
                   <TableCell className="font-satoshi font-medium text-[#E1C9FF]">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger>
-                        <MoreVertIcon />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => handleOpenModal(i)}>
-                          Open
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <div className="flex flex-row gap-1">
+                      <button
+                        onClick={() => handleOpenModal(i)}
+                        style={{
+                          width: "28px",
+                          height: "28px",
+                          borderRadius: "7px",
+                          border: "1px solid rgba(127,86,217,0.3)",
+                          background: "rgba(127,86,217,0.08)",
+                          color: "#E1C9FF",
+                          cursor: "pointer",
+                          fontSize: "11px",
+                          lineHeight: 1,
+                        }}
+                      >
+                        Open
+                      </button>
+                      <button
+                        onClick={() => handleOpenModal(i)}
+                        style={{
+                          width: "28px",
+                          height: "28px",
+                          borderRadius: "7px",
+                          border: "1px solid rgba(127,86,217,0.3)",
+                          background: "rgba(127,86,217,0.08)",
+                          color: "#E1C9FF",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <ReplyIcon sx={{ fontSize: 15 }} />
+                      </button>
+                      <button
+                        onClick={() =>
+                          Swal.fire({
+                            icon: "success",
+                            text: "Thread saved as activity",
+                            timer: 1500,
+                            showConfirmButton: false,
+                          })
+                        }
+                        style={{
+                          width: "28px",
+                          height: "28px",
+                          borderRadius: "7px",
+                          border: "1px solid rgba(127,86,217,0.3)",
+                          background: "rgba(127,86,217,0.08)",
+                          color: "#E1C9FF",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <AddCircleOutlineIcon sx={{ fontSize: 15, color: "#86EFAC" }} />
+                      </button>
+                    </div>
                   </TableCell>
 
                   {picklistName === "Inbox" && (
@@ -141,17 +181,17 @@ function InboxTable({ picklistData, refreshData, picklistName }) {
                     </React.Fragment>
                   )}
 
-                  {openModal && (
-                    <MailDetails
-                      open={openModal}
-                      handleClose={() => setOpenModal(false)}
-                      item={currentItems.find((i) => i.id === empId)}
-                    />
-                  )}
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+          {openModal && (
+            <MailDetails
+              open={openModal}
+              handleClose={() => setOpenModal(false)}
+              item={currentItems.find((i) => i.id === empId)}
+            />
+          )}
 
           <Pagination
             count={totalPages}

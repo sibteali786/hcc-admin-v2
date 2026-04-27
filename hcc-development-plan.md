@@ -770,3 +770,66 @@ curl -i "$BASE_URL/api/contact-lists/$USER_ID/not-a-valid-objectid"
   - templates card grid
   - full-screen preview modal with rendered/source switching
 - Contact list creation and selection flow is functional and integrated with bulk-email compose path.
+
+### Completed: Phase 3E — Inbox quick actions per row (April 2026, latest)
+
+- **Inbox row Actions updated to inline quick actions** ([`src/components/subcomponents/tables/inboxTable.jsx`](src/components/subcomponents/tables/inboxTable.jsx)):
+  - Replaced DropdownMenu actions with an inline dark-theme action group (`flex` row with `gap-1`).
+  - Added **Open** as a compact ghost-style text button (`28x28`, bordered, themed background).
+  - Added **Reply** icon button (`ReplyIcon`) that currently opens the same `MailDetails` flow as Open (`handleOpenModal(i)`), enabling future reply-flag wiring without UI changes.
+  - Added **Add as Activity** icon button (`AddCircleOutlineIcon`) with temporary success toast:
+    - `Swal.fire({ icon: "success", text: "Thread saved as activity", timer: 1500, showConfirmButton: false })`
+  - Removed now-unused row action menu imports/icons (`DropdownMenu*`, `MoreVertIcon`).
+
+- **MailDetails render placement corrected** ([`src/components/subcomponents/tables/inboxTable.jsx`](src/components/subcomponents/tables/inboxTable.jsx)):
+  - Removed `MailDetails` from inside the `TableRow` map.
+  - Rendered a single shared `MailDetails` instance after `</Table>` using:
+    - `item={currentItems.find(i => i.id === empId)}`
+  - This avoids duplicate per-row drawer mounts and matches handoff structure.
+
+### Completed: Phase 3D — Mailing table/debug and bulk drawer template preview sync (April 2026, latest)
+
+- **`MailingTable` API debugging instrumentation added** ([`src/components/subcomponents/tables/mailingTable.jsx`](src/components/subcomponents/tables/mailingTable.jsx)):
+  - Added debug logging for `assignedTo` request param used in `GET /api/clients/allNewLeads`.
+  - Added response-shape logs inside request `.then()`:
+    - `res.data`
+    - `res.data.data`
+  - No filtering/assignment logic changes were made in this step (debug-only update).
+
+- **`Email All` modal rendering bug fixed** ([`src/components/subcomponents/tables/mailingTable.jsx`](src/components/subcomponents/tables/mailingTable.jsx)):
+  - Moved `SendBulkEmailViaGmail` render outside the `newClients.length > 0 && !loader` block.
+  - Result: bulk-email drawer can now open even when there are no table rows.
+  - Updated prop fallback to avoid undefined list handling:
+    - `newClients={newClients || []}`
+
+- **Bulk drawer template body fetch + preview fallback added** ([`src/components/subcomponents/drawers/bulkEmialDrawer.jsx`](src/components/subcomponents/drawers/bulkEmialDrawer.jsx)):
+  - Added local state:
+    - `templateBody`
+  - Added `fetchTemplateBody(templateIdValue)` to retrieve selected template HTML:
+    - `GET ${apiPath.prodPath3}/api/templates/:templateId`
+    - Sets `templateBody` from `r.data?.data?.body || ""`
+  - Template select now triggers both:
+    - `setTemplateId(e.target.value)`
+    - `fetchTemplateBody(e.target.value)`
+  - Live preview iframe now prefers editor body, then fetched template body:
+    - `srcDoc={body || templateBody || ""}`
+
+### Completed: Phase 3E — Contact Lists row-level bulk send flow (April 2026, latest)
+
+- **Row-level bulk action added in Contact Lists table** ([`src/components/subcomponents/tables/contactListsTable.jsx`](src/components/subcomponents/tables/contactListsTable.jsx)):
+  - Added a `Bulk Send` table column with a `Send Bulk` button on each contact-list row.
+  - Row action now opens `SendBulkEmailViaGmail` and passes the clicked list context.
+  - Added local UI state to support flow:
+    - `bulkDrawerOpen`
+    - `selectedList`
+  - Drawer is rendered from the Contact Lists table with:
+    - `emails={[]}`
+    - `newClients={[]}`
+    - `preselectedListId={selectedList._id}`
+
+- **Bulk drawer preselection support added** ([`src/components/subcomponents/drawers/bulkEmialDrawer.jsx`](src/components/subcomponents/drawers/bulkEmialDrawer.jsx)):
+  - Added new optional prop:
+    - `preselectedListId = ""`
+  - Added open-time sync effect:
+    - when `open && preselectedListId`, set `selectedContactListId(preselectedListId)`
+  - Result: opening from a Contact List row auto-selects that list in the bulk-email compose drawer without extra user selection.
