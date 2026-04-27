@@ -64,7 +64,8 @@ function MailingComp() {
       }
 
       const res = await axios.get(url);
-      setPicklistData(res.data);
+      const data = Array.isArray(res.data) ? res.data : res.data?.data || [];
+      setPicklistData(data);
     } catch (err) {
       Swal.fire({
         icon: "error",
@@ -97,7 +98,8 @@ function MailingComp() {
       }
 
       const res = await axios.get(url);
-      setPicklistData(res.data);
+      const data = Array.isArray(res.data) ? res.data : res.data?.data || [];
+      setPicklistData(data);  
     } catch (err) {
       Swal.fire({
         icon: "error",

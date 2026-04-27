@@ -1,5 +1,3 @@
-
-
 import React, { useState } from "react";
 import {
   Table,
@@ -24,7 +22,7 @@ import moment from "moment";
 import MailDetails from "../drawers/mailOpen";
 import { Button } from "@/components/ui/button";
 
-function InboxTable({ picklistData, refreshData, picklistName}) {
+function InboxTable({ picklistData, refreshData, picklistName }) {
   const [empId, setEmpId] = useState("");
   const [openModal, setOpenModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -34,7 +32,7 @@ function InboxTable({ picklistData, refreshData, picklistName}) {
   const totalPages = Math.ceil(picklistData.length / itemsPerPage);
   const currentItems = picklistData.slice(
     (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+    currentPage * itemsPerPage,
   );
 
   const onPageChange = (event, page) => {
@@ -67,11 +65,36 @@ function InboxTable({ picklistData, refreshData, picklistName}) {
                 <TableHead className="text-[#E1C9FF]">Actions</TableHead>
                 {picklistName === "Inbox" && (
                   <>
-                    <TableHead className="text-[#E1C9FF]" style={{ minWidth: 150 }}>Subject</TableHead>
-                    <TableHead className="text-[#E1C9FF]" style={{ minWidth: 150 }}>From</TableHead>
-                    <TableHead className="text-[#E1C9FF]" style={{ minWidth: 150 }}>Snippet</TableHead>
-                    <TableHead className="text-[#E1C9FF]" style={{ minWidth: 150 }}>Date</TableHead>
-                    <TableHead className="text-[#E1C9FF]" style={{ minWidth: 150 }}>MSG ID</TableHead>
+                    <TableHead
+                      className="text-[#E1C9FF]"
+                      style={{ minWidth: 150 }}
+                    >
+                      Subject
+                    </TableHead>
+                    <TableHead
+                      className="text-[#E1C9FF]"
+                      style={{ minWidth: 150 }}
+                    >
+                      From
+                    </TableHead>
+                    <TableHead
+                      className="text-[#E1C9FF]"
+                      style={{ minWidth: 150 }}
+                    >
+                      Snippet
+                    </TableHead>
+                    <TableHead
+                      className="text-[#E1C9FF]"
+                      style={{ minWidth: 150 }}
+                    >
+                      Date
+                    </TableHead>
+                    <TableHead
+                      className="text-[#E1C9FF]"
+                      style={{ minWidth: 150 }}
+                    >
+                      MSG ID
+                    </TableHead>
                   </>
                 )}
               </TableRow>
@@ -118,11 +141,11 @@ function InboxTable({ picklistData, refreshData, picklistName}) {
                     </React.Fragment>
                   )}
 
-                  {openModal && empId === i.id && (
+                  {openModal && (
                     <MailDetails
                       open={openModal}
                       handleClose={() => setOpenModal(false)}
-                      item={i}
+                      item={currentItems.find((i) => i.id === empId)}
                     />
                   )}
                 </TableRow>
@@ -161,5 +184,3 @@ function InboxTable({ picklistData, refreshData, picklistName}) {
 }
 
 export default InboxTable;
-
-

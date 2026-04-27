@@ -735,3 +735,38 @@ curl -i "$BASE_URL/api/contact-lists/$USER_ID/not-a-valid-objectid"
 ### Still not done (for next sessions)
 
 - Activity feed POST to adam-backend (`activityLogger`, `ADAM_BACKEND_URL`)
+- Remove deprecated `BulkJob.results[]` after delivery-log migration is fully validated in production
+- End-to-end SendGrid webhook hardening in production (public HTTPS endpoint, replay safeguards, alerting)
+- Retry/Pause UX controls in Bulk Jobs table (API wiring + user feedback states)
+
+### Completed: Phase 3C — hcc-admin-v2 Templates UX and modal polish (April 2026, latest)
+
+- **Drawer centering/sizing fixes**:
+  - Updated template and contact-list create modals from `Drawer` to `Dialog` to avoid MUI Drawer transform/position overrides.
+  - Files:
+    - [`src/components/subcomponents/drawers/templateBuilderDrawer.jsx`](src/components/subcomponents/drawers/templateBuilderDrawer.jsx)
+    - [`src/components/subcomponents/drawers/newContactListDrawer.jsx`](src/components/subcomponents/drawers/newContactListDrawer.jsx)
+- **Modal viewport sizing standardization**:
+  - Dialog paper now uses viewport sizing and constrained width (`90vw`/`1200px`, `90vh`) with overflow clipping for stable dark-theme shell rendering.
+- **Internal panel overflow/layout fixes**:
+  - Prevented save button/panel cutoff by using flex-based height distribution (`flex-1`, `min-h-0`, `overflow-hidden`) on the two-panel content region.
+  - Ensured scrolling remains inside panel containers rather than overflowing outside modal bounds.
+- **Templates preview modal added in cards table** ([`src/components/subcomponents/tables/templatesTable.jsx`](src/components/subcomponents/tables/templatesTable.jsx)):
+  - Template cards are now clickable and open a centered preview `Dialog`.
+  - Click handler resets preview tab state each open:
+    - `onClick={() => { setPreviewTemplate(template); setPreviewTab("rendered"); }}`
+  - Added left metadata panel (name, kind, subject, description, usageCount, created date via `moment`).
+  - Added merge-tag extraction chips from template body using `{{word}}` regex scan.
+  - Added right preview tabs:
+    - **Rendered**: sandboxed `iframe` using raw `srcDoc` (no merge substitution).
+    - **HTML Source**: raw template body in `<pre>`.
+  - Styled with the same inline dark-theme gradient/border language as template builder dialog.
+
+### Current frontend status summary (Mailing module)
+
+- 4-tab Mailing architecture is in place and functional (`Inbox`, `Clients`, `Bulk Email`, `Templates`).
+- Templates flow now supports:
+  - create template dialog
+  - templates card grid
+  - full-screen preview modal with rendered/source switching
+- Contact list creation and selection flow is functional and integrated with bulk-email compose path.
