@@ -7,6 +7,19 @@ import React, { useState, useEffect, useCallback } from "react";
 import Swal from "sweetalert2";
 import { SkeletonCard } from "@/components/reusable/skeleton-card";
 import useAuthStore from "@/store/store";
+import Box from "@mui/material/Box";
+import Tab from "@mui/material/Tab";
+import TabContext from "@mui/lab/TabContext";
+import TabList from "@mui/lab/TabList";
+import TabPanel from "@mui/lab/TabPanel";
+
+import "./style.scss";
+import AddEmailCredentials from "../subcomponents/drawers/addEmailCredentials";
+import InboxTable from "../subcomponents/tables/inboxTable";
+import MailingTable from "../subcomponents/tables/mailingTable";
+import ContactListsTable from "../subcomponents/tables/contactListsTable";
+import BulkJobsTable from "../subcomponents/tables/bulkJobsTable";
+import TemplatesTable from "../subcomponents/tables/templatesTable";
 
 const poppins = Poppins({
   weight: ["300", "400", "500", "600", "800"],
@@ -14,94 +27,55 @@ const poppins = Poppins({
   subsets: ["latin"],
 });
 
-import "./style.scss";
-import MailingTable from "../subcomponents/tables/mailingTable";
-import AddEmailCredentials from "../subcomponents/drawers/addEmailCredentials";
-import InboxTable from "../subcomponents/tables/inboxTable";
-import AddEmailTemplate from "../subcomponents/drawers/emailTemplateDrawer";
-import EmailTemplateTable from "../subcomponents/tables/emailTemplateTable";
+function MailingComp() {
+  const [activeTab, setActiveTab] = useState("0");
+  const [bulkSubTab, setBulkSubTab] = useState("0");
+  const [templatesSubTab, setTemplatesSubTab] = useState("0");
 
-function MailingComp({ picklistName }) {
   const [picklistData, setPicklistData] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1); 
-  const [totalPages, setTotalPages] = useState(1);
   const [loader, setLoader] = useState(false);
   const [userTypeModal, setUserTypeModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterBy, setFilterBy] = useState("");  
+  const [filterBy, setFilterBy] = useState("");
   const [filterOpt, setFilterOpt] = useState([]);
-  const [emailTemplateModal, setEmailTemplateModal] = useState(false);
-  
+
   const user = useAuthStore((state) => state.user);
-  const usernameId = user?.user?._id || ""; // Directly get from Zustand store
-  const username = user?.user?.username || "";
+  const usernameId = user?.user?._id || "";
 
-  function filterOptions() {
-    let sorts;
-    
-    if (picklistName == "Inbox") {
-      sorts = [];
-    } else if (picklistName == "Gmail") {
-      sorts = [];
-    } else if (picklistName == "Email Templates") {
-      sorts = [];
-    } else { 
-      console.log("No data found"); 
-    }
+  const showSearchBar = activeTab === "0" || activeTab === "1";
+  const showGoogleButton = activeTab === "0" || activeTab === "1";
 
-    const options = sorts.map((item) => ({
-      label: item,
-      value: item,
-    }));
-    setFilterOpt(options);
-  }
+  const filterOptions = useCallback(() => {
+    setFilterOpt([]);
+  }, []);
 
-  const fetchData = useCallback(async (page = 1) => {
-    console.log("fetchData called with usernameId:", usernameId);
-    
-    if (picklistName === "Inbox" && !usernameId) {
-      console.log("Skipping fetch - usernameId not available yet");
-      return;
-    }
+  const fetchData = useCallback(async () => {
+    if (activeTab === "0" && !usernameId) return;
+    if (activeTab !== "0" && activeTab !== "1") return;
 
     setLoader(true);
     let url = "";
-    
+
     try {
-      if (picklistName === "Inbox") {
+      if (activeTab === "0") {
         url = `${apiPath.prodPath}/api/appGmail/listEmails/${usernameId}`;
-      } else if (picklistName === "Gmail") {
-        url = `${apiPath.prodPath}/api/clients/allNewLeads?page=${page}&limit=8`;
-      } else if (picklistName === "Email Templates") {
-        url = `${apiPath.prodPath}/api/emailTemplate/getEmailTemplateForUser/${username}`;
+      } else {
+        url = `${apiPath.prodPath}/api/clients/allNewLeads?page=1&limit=8`;
       }
 
       const res = await axios.get(url);
-      
-      if (picklistName === "Inbox") {
-        setPicklistData(res.data);
-      } else if (picklistName === "Gmail") {
-        setPicklistData(res.data);
-      } else if (picklistName === "Email Templates") {
-        setPicklistData(res.data);
-      } else {
-        console.log("No data found");
-      }
-      
-      setLoader(false);
+      setPicklistData(res.data);
     } catch (err) {
-      console.log(err);
       Swal.fire({
         icon: "error",
         text: "Something went wrong with the data fetching",
       });
+    } finally {
       setLoader(false);
     }
-  }, [picklistName, usernameId]); // Add dependencies
+  }, [activeTab, usernameId]);
 
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    
+  const handleSearch = async () => {
     if (!filterBy || !searchTerm.trim()) {
       Swal.fire({
         icon: "warning",
@@ -110,198 +84,169 @@ function MailingComp({ picklistName }) {
       return;
     }
 
+    if (activeTab !== "0" && activeTab !== "1") return;
+
     setLoader(true);
     let url = "";
 
     try {
-      if (picklistName === "Inbox") {
+      if (activeTab === "0") {
         url = `${apiPath.prodPath}/api/gmail/inbox?${filterBy}=${searchTerm}`;
-      } else if (picklistName === "Gmail") {
+      } else {
         url = `${apiPath.prodPath}/api/clients/allNewLeads?${filterBy}=${searchTerm}`;
-      } else if (picklistName === "Email Templates") {
-        url = `${apiPath.prodPath}/api/emailTemplate/getEmailTemplateForUser/${username}`;
       }
 
       const res = await axios.get(url);
-      
-      if (picklistName === "Inbox") {
-        setPicklistData(res.data);
-      } else if (picklistName === "Gmail") {
-        setPicklistData(res.data);
-      } else if (picklistName === "Email Templates") {
-        setPicklistData(res.data);
-      }
-      
-      setLoader(false);
+      setPicklistData(res.data);
     } catch (err) {
-      console.log(err);
       Swal.fire({
         icon: "error",
         text: "Something went wrong with the data fetching",
       });
+    } finally {
       setLoader(false);
     }
   };
 
   useEffect(() => {
     filterOptions();
-  }, [picklistName]);
+  }, [filterOptions, activeTab]);
 
   useEffect(() => {
-    if (picklistName === "Inbox" && !usernameId) {
-      // Wait for usernameId to be available before fetching
-      return;
-    }
-    fetchData(currentPage);
-  }, [currentPage, picklistName, usernameId, fetchData]);
-
-  const handlePageChange = (event, page) => {
-    setCurrentPage(page); 
-  };
-
-  const handleUserTypeModal = () => {
-    setUserTypeModal(true);
-  };
-
-  const refreshData = async (page = 1) => {
-    setLoader(true);
-    let url = "";
-    
-    try {
-      if (picklistName === "Inbox") {
-        url = `${apiPath.prodPath}/api/appGmail/listEmails/${usernameId}`;
-      } else if (picklistName === "Gmail") {
-        url = `${apiPath.prodPath}/api/clients/allNewLeads?page=${page}&limit=8`;
-      } else if (picklistName === "Email Templates") {
-        url = `${apiPath.prodPath}/api/emailTemplate/getEmailTemplateForUser/${username}`;
-      }
-
-      const res = await axios.get(url);
-      
-      if (picklistName === "Inbox") {
-        setPicklistData(res.data);
-      } else if (picklistName === "Gmail") {
-        setPicklistData(res.data);
-      } else if (picklistName === "Email Templates") {
-        setPicklistData(res.data);
-      } else {
-        console.log("No data found");
-      }
-      
-      setLoader(false);
-    } catch (err) {
-      console.log(err);
-      Swal.fire({
-        icon: "error",
-        text: "Something went wrong with the data fetching",
-      });
-      setLoader(false);
-    }
-  };
+    fetchData();
+  }, [fetchData]);
 
   const handleAuth = () => {
     window.location.assign("https://api-hccbackendcrm.com/auth/google");
   };
 
-  const handleEmailTemplateModal = () => {
-    setEmailTemplateModal(true);
+  const tabTitleMap = {
+    0: "Inbox",
+    1: "Clients",
+    2: "Bulk Email",
+    3: "Templates",
   };
 
   return (
     <main className={`${poppins.className} flex flex-col`}>
-      <div className="flex w-full flex-row flex-wrap justify-between">
-        <div className="w-full flex flex-row gap-2 mb-[24px] h-[34px]">
-          <h1 className="font-satoshi font-semibold text-2xl ml-[20px]">{picklistName}</h1>
-        </div>
-        <div className="flex flex-row gap-4 items-start border-none w-full">
-          <form onSubmit={handleSearch} className="flex flex-row gap-4 w-full items-center">
-            <input
-              type="search"
-              placeholder="  Search..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="px-5 text-white bg-[#2D245B] h-[42px] w-[243px] rounded-full font-satoshi"
-            />
-            <select
-              value={filterBy}
-              onChange={(e) => setFilterBy(e.target.value)}
-              className="rounded-full text-white bg-[#2D245B] h-[42px] w-[243px] px-5 pr-4 font-satoshi"
-            >
-              <option value="" disabled>Select Filter</option>
-              {filterOpt.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.value}
-                </option>
-              ))}
-            </select>
-            <input
-              type="submit"
-              className="rounded-full w-[99px] h-[42px] font-satoshi font-bold px-3 bg-[#2D245B] text-white hover:bg-gray-500 cursor-pointer"
-              value={"Search"}
-            />
-          </form>
-          <div className="w-3/4 flex flex-row gap-5 justify-end">
-            {(picklistName === "Gmail" || picklistName === "Inbox") && (
-              <Button
-                onClick={handleAuth}
-                variant="outline"
-                className="bg-[#B797FF] w-[162.2px] h-[42] rounded-[8px] font-satoshi"
-              >
-                <AddIcon /> Google
-              </Button>
-            )}
-            {picklistName === "Email Templates" && (
-              <Button
-                onClick={handleEmailTemplateModal}
-                variant="outline"
-                className="bg-[#B797FF] w-[162.2px] h-[42] rounded-[8px] font-satoshi"
-              >
-                <AddIcon /> {picklistName}
-              </Button>
+      <Box sx={{ width: "100%", typography: "body1" }}>
+        <TabContext value={activeTab}>
+          <Box sx={{ borderBottom: 1, borderColor: "divider", color: "#fff" }}>
+            <TabList onChange={(event, newValue) => setActiveTab(newValue)} aria-label="mailing main tabs">
+              <Tab label="Inbox" value="0" />
+              <Tab label="Clients" value="1" />
+              <Tab label="Bulk Email" value="2" />
+              <Tab label="Templates" value="3" />
+            </TabList>
+          </Box>
+
+          <div className="flex w-full flex-row flex-wrap justify-between mt-4">
+            <div className="w-full flex flex-row gap-2 mb-[24px] h-[34px]">
+              <h1 className="font-satoshi font-semibold text-2xl ml-[20px]">{tabTitleMap[activeTab]}</h1>
+            </div>
+
+            {showSearchBar && (
+              <div className="flex flex-row gap-4 items-start border-none w-full">
+                <div className="flex flex-row gap-4 w-full items-center">
+                  <input
+                    type="search"
+                    placeholder="  Search..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="px-5 text-white bg-[#2D245B] h-[42px] w-[243px] rounded-full font-satoshi"
+                  />
+                  <select
+                    value={filterBy}
+                    onChange={(e) => setFilterBy(e.target.value)}
+                    className="rounded-full text-white bg-[#2D245B] h-[42px] w-[243px] px-5 pr-4 font-satoshi"
+                  >
+                    <option value="" disabled>
+                      Select Filter
+                    </option>
+                    {filterOpt.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.value}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    onClick={handleSearch}
+                    className="rounded-full w-[99px] h-[42px] font-satoshi font-bold px-3 bg-[#2D245B] text-white hover:bg-gray-500 cursor-pointer"
+                  >
+                    Search
+                  </Button>
+                </div>
+                <div className="w-3/4 flex flex-row gap-5 justify-end">
+                  {showGoogleButton && (
+                    <Button
+                      onClick={handleAuth}
+                      variant="outline"
+                      className="bg-[#B797FF] w-[162.2px] h-[42] rounded-[8px] font-satoshi"
+                    >
+                      <AddIcon /> Google
+                    </Button>
+                  )}
+                </div>
+              </div>
             )}
           </div>
-        </div>
-      </div>
 
-      <div className="mt-8">
-        {loader ? (
-          <SkeletonCard />
-        ) : picklistName === "Gmail" && (
-          <MailingTable />
-        )}
-        {loader ? (
-          <SkeletonCard />
-        ) : picklistName === "Inbox" && (
-          <InboxTable
-            picklistData={picklistData}
-            refreshData={refreshData}
-            picklistName={picklistName}
-          />
-        )}
-        {loader ? (
-          <SkeletonCard />
-        ) : picklistName === "Email Templates" && (
-          <EmailTemplateTable
-            picklistData={picklistData}
-            refreshData={refreshData}
-            picklistName={picklistName}
-          />
-        )}
-      </div>
-      
-      {picklistName === "Gmail" && (
-        <AddEmailCredentials
-          open={userTypeModal}
-          handleClose={() => setUserTypeModal(false)}
-        />
-      )}
-      {picklistName === "Email Templates" && (
-        <AddEmailTemplate
-          open={emailTemplateModal}
-          handleClose={() => setEmailTemplateModal(false)}
-          refreshData={refreshData}
-        />
-      )}
+          <TabPanel value="0">
+            {loader ? (
+              <SkeletonCard />
+            ) : (
+              <InboxTable
+                picklistData={picklistData}
+                refreshData={fetchData}
+                picklistName="Inbox"
+              />
+            )}
+          </TabPanel>
+
+          <TabPanel value="1">
+            {loader ? <SkeletonCard /> : <MailingTable />}
+          </TabPanel>
+
+          <TabPanel value="2">
+            <TabContext value={bulkSubTab}>
+              <Box sx={{ borderBottom: 1, borderColor: "divider", color: "#fff" }}>
+                <TabList onChange={(event, newValue) => setBulkSubTab(newValue)} aria-label="bulk email subtabs">
+                  <Tab label="Contact Lists" value="0" />
+                  <Tab label="Bulk Jobs" value="1" />
+                </TabList>
+              </Box>
+              <TabPanel value="0">
+                <ContactListsTable />
+              </TabPanel>
+              <TabPanel value="1">
+                <BulkJobsTable />
+              </TabPanel>
+            </TabContext>
+          </TabPanel>
+
+          <TabPanel value="3">
+            <TabContext value={templatesSubTab}>
+              <Box sx={{ borderBottom: 1, borderColor: "divider", color: "#fff" }}>
+                <TabList onChange={(event, newValue) => setTemplatesSubTab(newValue)} aria-label="templates subtabs">
+                  <Tab label="Contact Lists" value="0" />
+                  <Tab label="Templates & Newsletters" value="1" />
+                </TabList>
+              </Box>
+              <TabPanel value="0">
+                <ContactListsTable />
+              </TabPanel>
+              <TabPanel value="1">
+                <TemplatesTable />
+              </TabPanel>
+            </TabContext>
+          </TabPanel>
+        </TabContext>
+      </Box>
+
+      <AddEmailCredentials
+        open={userTypeModal}
+        handleClose={() => setUserTypeModal(false)}
+      />
     </main>
   );
 }

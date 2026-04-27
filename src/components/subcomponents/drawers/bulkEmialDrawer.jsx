@@ -22,6 +22,17 @@ function GmailToField({ contacts = [], initialRecipients = [], placeholder = "To
   useEffect(() => onChange(recipients.map((r) => r.email ?? r.value)), [recipients]);
 
   useEffect(() => {
+    if (!Array.isArray(initialRecipients) || initialRecipients.length === 0) return;
+
+    const normalized = initialRecipients.map((r) => normalizeRecipient(r));
+    setRecipients((prev) => {
+      const existing = new Set(prev.map((r) => (r.email || r.value || "").toLowerCase()));
+      const toAdd = normalized.filter((r) => !existing.has((r.email || r.value || "").toLowerCase()));
+      return toAdd.length ? [...prev, ...toAdd] : prev;
+    });
+  }, [initialRecipients]);
+
+  useEffect(() => {
     function handleClick(e) {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
         setOpen(false);
@@ -172,9 +183,12 @@ export default function SendBulkEmailViaGmail({ open, handleClose, emails = [], 
   const [subject, setSubject] = useState("");
   const [templateId, setTemplateId] = useState("");
   const [templateData, setTemplateData] = useState([]);
-  const [inputTemplateId, setInputTemplateId] = useState("");
   const [attachments, setAttachments] = useState([]);
   const [contacts, setContacts] = useState([]);
+  const [service, setService] = useState("gmail");
+  const [contactLists, setContactLists] = useState([]);
+  const [selectedContactListId, setSelectedContactListId] = useState("");
+  const [listRecipients, setListRecipients] = useState([]);
   
   // newClients.map((item) => {
   //   setTo((prev) => [...prev, item.email]);
@@ -182,14 +196,16 @@ export default function SendBulkEmailViaGmail({ open, handleClose, emails = [], 
 
   const hccEmail = user?.user?.hccEmail || " ";
   const id = user?.user?._id;
-  const senderName = `${user?.user?.firstName} ${user?.user?.secondName}` 
+  const senderName = `${user?.user?.firstName} ${user?.user?.secondName}`;
   const senderTitle = user?.user?.title || "Business Growth Consultant";
 
   useEffect(() => {
+    if (!id) return;
+
     async function templateOptions() {
       try {
-        const res = await axios.get(`${apiPath.prodPath}/api/appGmail/templates`);
-        const templateArr = res.data || [];
+        const res = await axios.get(`${apiPath.prodPath3}/api/templates`);
+        const templateArr = Array.isArray(res.data) ? res.data : res.data?.data || [];
         const options = templateArr.map((it) => ({ label: it.name || it.id, value: it.id, id: it.id, name: it.name, description: it.description }));
         setTemplateData(options);
       } catch (err) {
@@ -200,63 +216,112 @@ export default function SendBulkEmailViaGmail({ open, handleClose, emails = [], 
 
     async function loadContacts() {
       try {
-        const r = await axios.get(`${apiPath.prodPath}/api/contacts`);
-        setContacts(r.data || []);
+        const r = await axios.get(`${apiPath.prodPath}/api/clients/allNewLeads`);
+        const rows = Array.isArray(r.data) ? r.data : r.data?.data || [];
+        const mapped = rows
+          .filter((client) => client?.email)
+          .map((client) => ({
+            email: client.email,
+            name: client.clientName || client.name || "",
+            value: client.email,
+          }));
+        setContacts(mapped);
       } catch (err) {
       }
     }
+
+    async function loadContactLists() {
+      try {
+        const r = await axios.get(`${apiPath.prodPath3}/api/contact-lists/${id}`);
+        const rows = Array.isArray(r.data) ? r.data : r.data?.data || [];
+        setContactLists(rows);
+      } catch (err) {
+        setContactLists([]);
+      }
+    }
+
     loadContacts();
-  }, []);
+    loadContactLists();
+  }, [id]);
+
+  useEffect(() => {
+    if (!selectedContactListId || !id) return;
+
+    async function loadMembers() {
+      try {
+        const r = await axios.get(
+          `${apiPath.prodPath3}/api/contact-lists/${id}/${selectedContactListId}/members`
+        );
+        const members = r.data?.data?.members || [];
+        const recipientEmails = members.map((member) => member?.email).filter(Boolean);
+        setListRecipients(recipientEmails);
+      } catch (err) {
+        setListRecipients([]);
+        Swal.fire("Error", "Failed to load members for selected list", "error");
+      }
+    }
+
+    loadMembers();
+  }, [selectedContactListId, id]);
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files || []);
     setAttachments((prev) => [...prev, ...files]);
   };
 
-  const handleUpload = async (e) => {
-    e.preventDefault();
+  const handleUpload = async () => {
     try {
-      let templateData2 = {
-        title : "Good Day From Hill Country",
-        recipientName : recipientName,
-        body : body,
-        additionalText : "Thank You for your Time",
-        senderName : senderName,
-        senderTitle : senderTitle,
-        companyName : "Hill Country Coders",
-        companyAddress : "Cedar Park Texas USA",
-        companyWebsite : "https://www.hillcountrycoders.com"
-      };
+      if (!id) {
+        Swal.fire("Error", "User is not available in session", "error");
+        return;
+      }
+      if (!to || (Array.isArray(to) && to.length === 0)) {
+        Swal.fire("Warning", "Please add at least one recipient", "warning");
+        return;
+      }
 
+      const firstRecipient = Array.isArray(to) ? to[0] : to;
+      let templateData2 = {
+        title: "Good Day From Hill Country",
+        recipientName: firstRecipient || "",
+        body: body,
+        additionalText: "Thank You for your Time",
+        senderName: senderName,
+        senderTitle: senderTitle,
+        companyName: "Hill Country Coders",
+        companyAddress: "Cedar Park Texas USA",
+        companyWebsite: "https://www.hillcountrycoders.com",
+      };
 
       const formData = new FormData();
       if (Array.isArray(to)) {
-       formData.append("recipients", JSON.stringify(to));
-      } else if (typeof to === 'string') {
-        formData.append('recipients', to);
+        formData.append("recipients", JSON.stringify(to));
+      } else if (typeof to === "string") {
+        formData.append("recipients", to);
       }
-      formData.append('subject', subject);
-      formData.append('body', body);
-      if (templateId?.value) formData.append('templateId', templateId.value);
+      formData.append("subject", subject);
+      formData.append("body", body);
+      formData.append("service", service);
+      if (templateId?.value) formData.append("templateId", templateId.value);
       formData.append("templateData", JSON.stringify(templateData2));
-      attachments.forEach((file) => formData.append('attachments', file));
+      attachments.forEach((file) => formData.append("attachments", file));
 
       const response = await axios.post(`${apiPath.prodPath3}/api/bulkEmail/sendBulkEmail/${id}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { "Content-Type": "multipart/form-data" },
       });
       console.log(response.data);
-      Swal.fire('Sent', 'Email sent successfully', 'success');
+      Swal.fire("Sent", "Email sent successfully", "success");
       setBody("");
       setSubject("");
       setTemplateId("");
-      setTemplateData([]);
-      setInputTemplateId("");
       setAttachments([]);
       setTo([]);
+      setSelectedContactListId("");
+      setListRecipients([]);
       handleClose();
     } catch (error) {
-      console.error('Error sending email:', error);
-      Swal.fire('Error', 'Failed to send email', 'error');
+      console.error("Error sending email:", error);
+      Swal.fire("Error", "Failed to send email", "error");
     }
   };
 
@@ -291,7 +356,7 @@ export default function SendBulkEmailViaGmail({ open, handleClose, emails = [], 
             <CloseIcon className="text-2xl hover:cursor-pointer" onClick={() => handleClose()} />
           </div>
           <h1 className="text-white font-satoshi text-2xl font-bold mb-5">Email</h1>
-          <form onSubmit={handleUpload} className="space-y-4 mt-4">
+          <div className="space-y-4 mt-4">
             <div className="flex flex-row gap-4 w-full items-center justify-between pb-6 border-b-[1px] border-[#7F56D9]">
               <div className="flex flex-col gap-2 w-1/2">
                 <label className="font-satoshi text-md">From</label>
@@ -300,7 +365,14 @@ export default function SendBulkEmailViaGmail({ open, handleClose, emails = [], 
 
               <div className="flex flex-col gap-2 w-1/2">
                 <label className="font-satoshi text-md">To</label>
-                <GmailToField contacts={contacts} initialRecipients={newClients.map((client) => client.email)} onChange={handleToChange} />
+                <GmailToField
+                  contacts={contacts}
+                  initialRecipients={[
+                    ...(newClients || []).map((client) => client.email).filter(Boolean),
+                    ...listRecipients,
+                  ]}
+                  onChange={handleToChange}
+                />
               </div>
 
               <div className="flex flex-col gap-2 w-full">
@@ -310,9 +382,38 @@ export default function SendBulkEmailViaGmail({ open, handleClose, emails = [], 
             </div>
 
             <div className="flex flex-row gap-4 w-full items-center justify-between pb-6 border-b-[1px] border-[#7F56D9]">
+              <div className="flex flex-col gap-2 w-1/2">
+                <label className="font-satoshi text-md">Service</label>
+                <select
+                  value={service}
+                  onChange={(e) => setService(e.target.value)}
+                  className="p-2 rounded-[8px] bg-[#191526] border-[#452C95] text-white"
+                >
+                  <option value="gmail">Gmail</option>
+                  <option value="sendgrid">SendGrid</option>
+                </select>
+              </div>
+              <div className="flex flex-col gap-2 w-1/2">
+                <label className="font-satoshi text-md">Contact List</label>
+                <select
+                  value={selectedContactListId}
+                  onChange={(e) => setSelectedContactListId(e.target.value)}
+                  className="p-2 rounded-[8px] bg-[#191526] border-[#452C95] text-white"
+                >
+                  <option value="">Select Contact List</option>
+                  {contactLists.map((list) => (
+                    <option key={list._id} value={list._id}>
+                      {list.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex flex-row gap-4 w-full items-center justify-between pb-6 border-b-[1px] border-[#7F56D9]">
               <div className="flex flex-col gap-2 w-full">
                 <label htmlFor="body">Body</label>
-                <textarea id="body" name="body" value={body} onChange={(e) => setBody(e.target.value)} required className="p-2 border-[#452C95] rounded-[8px] focus-within:outline-none border-[1px] bg-[#191526]" />
+                <textarea id="body" name="body" value={body} onChange={(e) => setBody(e.target.value)} className="p-2 border-[#452C95] rounded-[8px] focus-within:outline-none border-[1px] bg-[#191526]" />
               </div>
             </div>
 
@@ -331,8 +432,8 @@ export default function SendBulkEmailViaGmail({ open, handleClose, emails = [], 
               </div>
             </div>
 
-            <Button type="submit" className="w-full bg-[#B797FF]">Send Email</Button>
-          </form>
+            <Button onClick={handleUpload} className="w-full bg-[#B797FF]">Send Email</Button>
+          </div>
         </div>
       </Drawer>
     </>
