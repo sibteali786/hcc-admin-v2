@@ -11,6 +11,7 @@ import {
 import Pagination from "@mui/material/Pagination";
 import moment from "moment";
 import MailDetails from "../drawers/mailOpen";
+import SendEmailViaGmail from "../drawers/mailingDrawer";
 import { Button } from "@/components/ui/button";
 import ReplyIcon from "@mui/icons-material/Reply";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
@@ -18,6 +19,9 @@ import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 function InboxTable({ picklistData, refreshData, picklistName }) {
   const [empId, setEmpId] = useState("");
   const [openModal, setOpenModal] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeEmail, setComposeEmail] = useState("");
+  const [composeItem, setComposeItem] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 
@@ -45,6 +49,16 @@ function InboxTable({ picklistData, refreshData, picklistName }) {
           onClick={() => refreshData()}
         >
           Refresh
+        </Button>
+        <Button
+          className="bg-[#B797FF] w-1/3 text-black hover:opacity-80"
+          onClick={() => {
+            setComposeEmail("");
+            setComposeItem(null);
+            setComposeOpen(true);
+          }}
+        >
+          + Compose
         </Button>
       </div>
 
@@ -118,7 +132,13 @@ function InboxTable({ picklistData, refreshData, picklistName }) {
                         Open
                       </button>
                       <button
-                        onClick={() => handleOpenModal(i)}
+                        onClick={() => {
+                          const match = i.from?.match(/<(.+?)>/);
+                          const replyEmail = match ? match[1] : i.from;
+                          setComposeEmail(replyEmail);
+                          setComposeItem(i);
+                          setComposeOpen(true);
+                        }}
                         style={{
                           width: "28px",
                           height: "28px",
@@ -156,7 +176,9 @@ function InboxTable({ picklistData, refreshData, picklistName }) {
                           justifyContent: "center",
                         }}
                       >
-                        <AddCircleOutlineIcon sx={{ fontSize: 15, color: "#86EFAC" }} />
+                        <AddCircleOutlineIcon
+                          sx={{ fontSize: 15, color: "#86EFAC" }}
+                        />
                       </button>
                     </div>
                   </TableCell>
@@ -180,7 +202,6 @@ function InboxTable({ picklistData, refreshData, picklistName }) {
                       </TableCell>
                     </React.Fragment>
                   )}
-
                 </TableRow>
               ))}
             </TableBody>
@@ -190,9 +211,28 @@ function InboxTable({ picklistData, refreshData, picklistName }) {
               open={openModal}
               handleClose={() => setOpenModal(false)}
               item={currentItems.find((i) => i.id === empId)}
+              onReply={(mailItem) => {
+                setOpenModal(false);
+                const match = mailItem.from?.match(/<(.+?)>/);
+                const replyEmail = match ? match[1] : mailItem.from;
+                setComposeEmail(replyEmail);
+                setComposeItem(mailItem);
+                setComposeOpen(true);
+              }}
             />
           )}
-
+          {composeOpen && (
+            <SendEmailViaGmail
+              open={composeOpen}
+              handleClose={() => {
+                setComposeOpen(false);
+                setComposeEmail("");
+                setComposeItem(null);
+              }}
+              email={composeEmail}
+              item={composeItem}
+            />
+          )}
           <Pagination
             count={totalPages}
             page={currentPage}
