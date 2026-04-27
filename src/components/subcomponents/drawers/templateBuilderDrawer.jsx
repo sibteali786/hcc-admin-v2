@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Drawer } from "@mui/material";
+import { Dialog } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import axios from "axios";
 import Swal from "sweetalert2";
@@ -83,27 +83,23 @@ export default function TemplateBuilderDrawer({ open, handleClose, refreshData }
   };
 
   return (
-    <Drawer
-      className="bg-all-modals"
-      anchor="left"
+    <Dialog
       open={open}
       onClose={handleClose}
+      maxWidth={false}
       PaperProps={{
         sx: {
-          width: "1142px",
-          height: "dvh",
-          position: "absolute",
-          left: "50%",
-          top: "50%",
-          transform: "translate(-50%, -50%)",
+          width: "90vw",
+          maxWidth: "1200px",
+          height: "90vh",
           borderRadius: "16px",
-          boxShadow: 3,
-          marginTop: "30px",
-          marginBottom: "30px",
+          backgroundColor: "transparent",
+          overflow: "hidden",
+          m: 0,
         },
       }}
     >
-      <div className="p-10 flex flex-col bg-[#2D245B] text-white h-full">
+      <div className="p-10 flex flex-col bg-[#2D245B] text-white h-full overflow-hidden">
         <div className="flex flex-row justify-end">
           <CloseIcon className="text-2xl hover:cursor-pointer" onClick={() => handleClose()} />
         </div>
@@ -151,7 +147,7 @@ export default function TemplateBuilderDrawer({ open, handleClose, refreshData }
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 mt-4 h-full min-h-0">
+        <div className="grid grid-cols-2 gap-4 mt-4 flex-1 min-h-0 overflow-hidden">
           <div className="border border-[#452C95] bg-[#231C46] rounded-[12px] p-4 overflow-hidden flex flex-col">
             <h2 className="text-[#B797FF] font-semibold mb-3">HTML Body</h2>
 
@@ -198,6 +194,6 @@ export default function TemplateBuilderDrawer({ open, handleClose, refreshData }
           </Button>
         </div>
       </div>
-    </Drawer>
+    </Dialog>
   );
 }
