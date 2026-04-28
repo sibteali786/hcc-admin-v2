@@ -42,6 +42,12 @@ function EmployeeTable({ allEmp, refreshData,  currentPage, totalPages, onPageCh
   //   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   //   const currentItems = allEmp.slice(indexOfFirstItem, indexOfLastItem);
     const [selectedPriorities, setSelectedPriorities] = useState({});
+    const getDisplayValue = (value) => {
+      if (!value) return "";
+      if (typeof value === "string") return value;
+      if (typeof value === "object") return value.name || value.label || value.value || "";
+      return "";
+    };
 
   
     const handlePriorityChange = (clientId, value) => {
@@ -251,10 +257,14 @@ function EmployeeTable({ allEmp, refreshData,  currentPage, totalPages, onPageCh
                     {i.status}
                   </TableCell>
                   <TableCell className="font-satoshi font-medium text-#fff">
-                    {i.needCategory.categoryName + " - " + i.needCategory.categoryCode}
+                    {[i?.needCategory?.categoryName || "", i?.needCategory?.categoryCode || ""]
+                      .filter(Boolean)
+                      .join(" - ")}
                   </TableCell>
                   <TableCell className="font-satoshi font-medium text-#fff">
-                    {i.needCategory.subCategory.subCategoryName + " - " + i.needCategory.subCategory.subCategoryCode}
+                    {[i?.needCategory?.subCategory?.subCategoryName || "", i?.needCategory?.subCategory?.subCategoryCode || ""]
+                      .filter(Boolean)
+                      .join(" - ")}
                   </TableCell>
                   <TableCell className="font-satoshi font-medium text-#fff">
                     {i.leadStatus}
@@ -266,13 +276,13 @@ function EmployeeTable({ allEmp, refreshData,  currentPage, totalPages, onPageCh
                     {i.territory}
                   </TableCell>
                   <TableCell className="font-satoshi font-medium text-#fff">
-                    {i.territoryManager}
+                    {getDisplayValue(i.territoryManager)}
                   </TableCell>
                   <TableCell className="font-satoshi font-medium text-#fff">
-                    {i.assignedTo}
+                    {getDisplayValue(i.assignedTo)}
                   </TableCell>
                   <TableCell className="font-satoshi font-medium text-#fff">
-                    {i.assignedBy}
+                    {getDisplayValue(i.assignedBy || i.assignee)}
                   </TableCell>
                  
 

@@ -31,6 +31,38 @@ function ClientPage() {
   const [currentPage, setCurrentPage] = useState(1); 
   const [totalPages, setTotalPages] = useState(1);
 
+  const getPersonName = (person) => {
+    if (!person) return "";
+    if (typeof person === "string") return person;
+    if (typeof person === "object") return person.name || person.fullName || "";
+    return "";
+  };
+
+  const normalizeClient = (client) => ({
+    ...client,
+    territoryManager: getPersonName(client?.territoryManager),
+    assignedTo: getPersonName(client?.assignedTo),
+    assignee: getPersonName(client?.assignee),
+    assignedBy: getPersonName(client?.assignedBy),
+    needCategory: {
+      categoryName: client?.needCategory?.categoryName || "",
+      categoryCode: client?.needCategory?.categoryCode || "",
+      subCategory: {
+        subCategoryName: client?.needCategory?.subCategory?.subCategoryName || "",
+        subCategoryCode: client?.needCategory?.subCategory?.subCategoryCode || "",
+      },
+    },
+  });
+
+  const normalizeClientsPayload = (payload) => {
+    const clients = Array.isArray(payload?.clients)
+      ? payload.clients
+      : Array.isArray(payload)
+      ? payload
+      : [];
+    return clients.map(normalizeClient);
+  };
+
 
   function filterOptions() {
     const sorts = [
@@ -85,7 +117,7 @@ useEffect(() => {
       const res = await axios.get(
         `${apiPath.prodPath}/api/clients/client/?${filterBy}=${searchTerm}`
       );
-      setAllEmp(res.data);
+      setAllEmp(normalizeClientsPayload(res.data));
     } catch (err) {
       console.error(err);
       Swal.fire({
@@ -112,7 +144,7 @@ useEffect(() => {
     axios
       .get(`${apiPath.prodPath}/api/clients/allclients`)
       .then((res) => {
-        setAllEmp(res.data.clients);
+        setAllEmp(normalizeClientsPayload(res.data));
         setTotalPages(res.data.totalPages);
         setLoader(false);
       })
@@ -139,7 +171,7 @@ useEffect(() => {
         }
       })
       .then((res) => {
-        setAllEmp(res.data.clients);
+        setAllEmp(normalizeClientsPayload(res.data));
         setTotalPages(res.data.totalPages);
         setLoader(false);
       })
@@ -179,7 +211,7 @@ useEffect(() => {
     axios
       .get(`${apiPath.prodPath}/api/clients/allclients`)
       .then((res) => {
-        setAllEmp(res.data.clients);
+        setAllEmp(normalizeClientsPayload(res.data));
         setTotalPages(res.data.totalPages)
         setLoader(false);
       })

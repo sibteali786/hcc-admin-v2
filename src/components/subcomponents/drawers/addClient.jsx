@@ -62,6 +62,18 @@ function AddCLient({ open, handleClose, addEmp, edit, editData, editEmp }) {
   const [inputLeadStatusValue, setInputLeadStatusValue] = useState("");
   const [researchPriority, setResearchPriority] = useState("");
   const [researchTag, setResearchTag] = useState(false);
+  const getPersonName = (person) => {
+    if (!person) return "";
+    if (typeof person === "string") return person;
+    if (typeof person === "object") return person.name || person.fullName || person.label || "";
+    return "";
+  };
+
+  const toSelectValue = (value) => {
+    const parsed = getPersonName(value);
+    if (!parsed || parsed === "undefined") return "";
+    return { label: parsed, value: parsed };
+  };
 
   const handleChange = (event, newValue) => {
     if (newValue !== null) {
@@ -180,9 +192,9 @@ function AddCLient({ open, handleClose, addEmp, edit, editData, editEmp }) {
       setWebsiteAddress(editData.websiteAddress);
       // setStatus(editData.status.value);
       setTerritory(editData.territory !== "undefined" && editData.territory ? { label: editData.territory, value: editData.territory}: "");
-      setTerritoryManager(editData.territoryManager !== "undefined" && editData.territoryManager ? { label: editData.territoryManager, value: editData.territoryManager } : "");
-      setAssignedTo(editData.assignedTo !== "undefined" && editData.assignedTo ? { label: editData.assignedTo, value: editData.assignedTo } : "");
-      setAssignedBy(editData.territoryManager !== "undefined" && editData.territoryManager ? { label: editData.assignee, value: editData.assignee } : "");
+      setTerritoryManager(toSelectValue(editData.territoryManager));
+      setAssignedTo(toSelectValue(editData.assignedTo));
+      setAssignedBy(toSelectValue(editData.assignedBy || editData.assignee));
       setBusRegDate(editData.busRegDate ? moment(editData.busRegDate).format('YYYY-MM-DD') : "");
       setResearchPriority(editData.researchPriority !== "undefined" && editData.researchPriority ? { label: editData.researchPriority, value: editData.researchPriority } : "");
     }

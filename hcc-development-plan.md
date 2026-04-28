@@ -787,6 +787,35 @@ curl -i "$BASE_URL/api/contact-lists/$USER_ID/not-a-valid-objectid"
     - `item={currentItems.find(i => i.id === empId)}`
   - This avoids duplicate per-row drawer mounts and matches handoff structure.
 
+### Completed: Phase 3F — Inbox compose/reply wiring (April 2026, latest)
+
+- **Compose drawer integration added to Inbox table** ([`src/components/subcomponents/tables/inboxTable.jsx`](src/components/subcomponents/tables/inboxTable.jsx)):
+  - Imported `SendEmailViaGmail` from `../drawers/mailingDrawer`.
+  - Added compose state:
+    - `composeOpen`
+    - `composeEmail`
+    - `composeItem`
+  - Added a toolbar **+ Compose** button next to Refresh that opens the compose drawer with cleared defaults.
+
+- **Reply action now opens compose prefilled from sender** ([`src/components/subcomponents/tables/inboxTable.jsx`](src/components/subcomponents/tables/inboxTable.jsx)):
+  - Reply button now parses Gmail-style `from` values:
+    - regex `/<(.+?)>/`
+    - fallback to raw `i.from` when no angle-bracket email exists
+  - Sets:
+    - `composeEmail` to extracted sender email
+    - `composeItem` to current row item
+    - `composeOpen` to `true`
+
+- **Compose drawer render added after MailDetails** ([`src/components/subcomponents/tables/inboxTable.jsx`](src/components/subcomponents/tables/inboxTable.jsx)):
+  - Renders:
+    - `open={composeOpen}`
+    - `email={composeEmail}`
+    - `item={composeItem}`
+  - Close handler resets compose state:
+    - `setComposeOpen(false)`
+    - `setComposeEmail("")`
+    - `setComposeItem(null)`
+
 ### Completed: Phase 3D — Mailing table/debug and bulk drawer template preview sync (April 2026, latest)
 
 - **`MailingTable` API debugging instrumentation added** ([`src/components/subcomponents/tables/mailingTable.jsx`](src/components/subcomponents/tables/mailingTable.jsx)):

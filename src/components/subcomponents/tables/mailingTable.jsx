@@ -59,7 +59,7 @@ function MailingTable( {clientItem}) {
     params: {
       status: "Lead",
       researchStatus: "No Research Done",
-      assignedTo: `${user.user.firstName} ${user.user.secondName}`,
+      assignedTo: user.user._id,
       fields: "clientName,email,companyName,phone,assignedTo,assignee,status",
       limit: 10,
       page: 1,
@@ -88,7 +88,7 @@ function MailingTable( {clientItem}) {
   useEffect(() => {
   setLoader(true);
   try {
-    const assignedToParam = `${user.user.firstName} ${user.user.secondName}`;
+    const assignedToParam = user.user._id;
     axios.get(`${apiPath.prodPath}/api/clients/allNewLeads`, {
     params: {
       status: "Lead",
@@ -133,7 +133,7 @@ useEffect(() => {
               params: {
                 status: "Lead",
                 researchStatus: "No Research Done",
-                assignedTo: `${user.user.firstName} ${user.user.secondName}`,
+                assignedTo: user.user._id,
                 fields: "clientName,email,companyName,phone,assignedTo,assignee,status",
                 limit: 10,
                 page: currentPage,
