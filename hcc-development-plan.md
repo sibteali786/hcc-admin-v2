@@ -816,6 +816,20 @@ curl -i "$BASE_URL/api/contact-lists/$USER_ID/not-a-valid-objectid"
     - `setComposeEmail("")`
     - `setComposeItem(null)`
 
+### Completed: Phase 3G — Single-mail drawer service selector UI (April 2026, latest)
+
+- **`mailingDrawer` service selection UI added** ([`src/components/subcomponents/drawers/mailingDrawer.jsx`](src/components/subcomponents/drawers/mailingDrawer.jsx)):
+  - Added local state:
+    - `service` with default `"gmail"`.
+  - Added **Service** dropdown in compose form (placed above Template picker) with options:
+    - `Gmail`
+    - `SendGrid`
+  - Updated footer recipient status line to include selected service label:
+    - `Sending via Gmail/SendGrid to ...`
+- **Scope guard**:
+  - This phase is **UI-only** in `hcc-admin-v2`.
+  - No API endpoint changes and no send-dispatch logic changes were made in this step.
+
 ### Completed: Phase 3D — Mailing table/debug and bulk drawer template preview sync (April 2026, latest)
 
 - **`MailingTable` API debugging instrumentation added** ([`src/components/subcomponents/tables/mailingTable.jsx`](src/components/subcomponents/tables/mailingTable.jsx)):
