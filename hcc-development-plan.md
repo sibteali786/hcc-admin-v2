@@ -1,3 +1,4 @@
+
 # Emailing Module — Complete Implementation Plan
 
 > Last updated: April 2026  
@@ -579,6 +580,8 @@ Steps 1–6 are all backend. Steps 7–10 are independent frontend components (a
 
 ## Implementation progress — emailControllerAuth2 (April 2026)
 
+> Note: Sections 1–11 are the master implementation plan and may include planned/in-progress items. The sections below capture rollout progress, and **SendGrid Implementation Reference** documents the code-verified backend state.
+
 ### Completed: Phase 1 — Gmail / SendGrid bulk provider switch
 
 - **Bulk provider selection**: `POST /api/bulkEmail/sendBulkEmail/:id` accepts `service` (`gmail` | `sendgrid`); defaults to `gmail` when omitted.
@@ -691,6 +694,10 @@ curl -i "$BASE_URL/api/contact-lists/$USER_ID/not-a-valid-objectid"
 ### Small fixes bundled (same repo)
 
 - [`src/controllers/bulkEmailControllers.js`](src/controllers/bulkEmailControllers.js): `getBulkEmailStatus` uses `req.params.id` (aligned with route); `getJobStatus` return includes `userId` and `service` for auth checks; `getQueueStats` imports and calls service correctly; `console.error` where `logger` was undefined.
+- **April 27 hotfixes** ([`src/controllers/bulkEmailControllers.js`](src/controllers/bulkEmailControllers.js)):
+  - `getBulkEmailJobs`: replaced session-based `req.user.id` reads with `req.params.id` in both `BulkJob.find(...)` and `BulkJob.countDocuments(...)` to support frontend calls without Passport session context.
+  - `getBulkEmailStatus`: ownership check now uses `String(req.params.id)` instead of `String(req.user.id)`.
+  - Fixed runtime `TypeError: BulkJob.find is not a function` by changing import to named CommonJS destructuring: `const { BulkJob } = require('../models/bulkJob');`.
 - **Operational notes**: curl bulk requests use `--form-string` for HTML bodies; SendGrid webhooks need **HTTPS** public URL (e.g. ngrok), not raw `localhost`; domain authentication improves inbox vs spam vs single sender only.
 
 ### Completed: Phase 3B — hcc-admin-v2 Mailing UI assembly (April 2026)
@@ -771,7 +778,7 @@ curl -i "$BASE_URL/api/contact-lists/$USER_ID/not-a-valid-objectid"
   - full-screen preview modal with rendered/source switching
 - Contact list creation and selection flow is functional and integrated with bulk-email compose path.
 
-### Completed: Phase 3E — Inbox quick actions per row (April 2026, latest)
+### Completed: Phase 3D — Inbox quick actions per row (April 2026, latest)
 
 - **Inbox row Actions updated to inline quick actions** ([`src/components/subcomponents/tables/inboxTable.jsx`](src/components/subcomponents/tables/inboxTable.jsx)):
   - Replaced DropdownMenu actions with an inline dark-theme action group (`flex` row with `gap-1`).
@@ -787,7 +794,7 @@ curl -i "$BASE_URL/api/contact-lists/$USER_ID/not-a-valid-objectid"
     - `item={currentItems.find(i => i.id === empId)}`
   - This avoids duplicate per-row drawer mounts and matches handoff structure.
 
-### Completed: Phase 3F — Inbox compose/reply wiring (April 2026, latest)
+### Completed: Phase 3E — Inbox compose/reply wiring (April 2026, latest)
 
 - **Compose drawer integration added to Inbox table** ([`src/components/subcomponents/tables/inboxTable.jsx`](src/components/subcomponents/tables/inboxTable.jsx)):
   - Imported `SendEmailViaGmail` from `../drawers/mailingDrawer`.
@@ -816,7 +823,7 @@ curl -i "$BASE_URL/api/contact-lists/$USER_ID/not-a-valid-objectid"
     - `setComposeEmail("")`
     - `setComposeItem(null)`
 
-### Completed: Phase 3G — Single-mail drawer service selector UI (April 2026, latest)
+### Completed: Phase 3F — Single-mail drawer service selector UI (April 2026, latest)
 
 - **`mailingDrawer` service selection UI added** ([`src/components/subcomponents/drawers/mailingDrawer.jsx`](src/components/subcomponents/drawers/mailingDrawer.jsx)):
   - Added local state:
@@ -830,7 +837,7 @@ curl -i "$BASE_URL/api/contact-lists/$USER_ID/not-a-valid-objectid"
   - This phase is **UI-only** in `hcc-admin-v2`.
   - No API endpoint changes and no send-dispatch logic changes were made in this step.
 
-### Completed: Phase 3D — Mailing table/debug and bulk drawer template preview sync (April 2026, latest)
+### Completed: Phase 3G — Mailing table/debug and bulk drawer template preview sync (April 2026, latest)
 
 - **`MailingTable` API debugging instrumentation added** ([`src/components/subcomponents/tables/mailingTable.jsx`](src/components/subcomponents/tables/mailingTable.jsx)):
   - Added debug logging for `assignedTo` request param used in `GET /api/clients/allNewLeads`.
@@ -857,7 +864,7 @@ curl -i "$BASE_URL/api/contact-lists/$USER_ID/not-a-valid-objectid"
   - Live preview iframe now prefers editor body, then fetched template body:
     - `srcDoc={body || templateBody || ""}`
 
-### Completed: Phase 3E — Contact Lists row-level bulk send flow (April 2026, latest)
+### Completed: Phase 3H — Contact Lists row-level bulk send flow (April 2026, latest)
 
 - **Row-level bulk action added in Contact Lists table** ([`src/components/subcomponents/tables/contactListsTable.jsx`](src/components/subcomponents/tables/contactListsTable.jsx)):
   - Added a `Bulk Send` table column with a `Send Bulk` button on each contact-list row.
@@ -876,3 +883,205 @@ curl -i "$BASE_URL/api/contact-lists/$USER_ID/not-a-valid-objectid"
   - Added open-time sync effect:
     - when `open && preselectedListId`, set `selectedContactListId(preselectedListId)`
   - Result: opening from a Contact List row auto-selects that list in the bulk-email compose drawer without extra user selection.
+
+### Completed: SendGrid Implementation Reference — emailControllerAuth2 (for HCC-adam-backend mirror)
+
+This section documents the **actual current implementation** in `emailControllerAuth2` from code.
+
+#### Models
+
+- **`src/models/emailDeliveryLogModel.js`**
+  - Fields: `jobId`, `recipientEmail`, `service`, `status`, `subject`, `bodyPreview`, `messageId`, `errorCode`, `errorMessage`, `attemptCount`, `correlationId`, `sentAt`, `deliveredAt`, `bouncedAt`, `providerEvent`, `createdAt`, `updatedAt`.
+  - Enums:
+    - `service`: `gmail | sendgrid`
+    - `status`: `queued | sent | delivered | bounced | failed | deferred`
+  - Indexes:
+    - field-level indexes on `jobId`, `recipientEmail`, `messageId`
+    - compound indexes on `{ jobId: 1, recipientEmail: 1 }` and `{ messageId: 1, recipientEmail: 1 }`
+  - Lifecycle: `pre('save')` updates `updatedAt`.
+
+- **`src/models/bulkJob.js`**
+  - SendGrid-related field currently present: `service` (`gmail | sendgrid`, default `gmail`).
+  - `templateId`, `contactListId`, and `scheduledAt` are **not currently present** in this schema.
+  - `results[]` is still present and still written by the worker.
+
+#### Services
+
+- **`src/services/sendgridService.js`**
+  - Exported interface:
+    - `sendEmail(to, subject, body, templateId, templateData, userId, files)`
+  - Env vars used:
+    - `SENDGRID_API_KEY` (required)
+    - `SENDGRID_FROM_EMAIL` (required)
+  - Template resolution:
+    - if `templateId` exists, resolves `Template.findById(templateId)` and renders `templateDoc.body` with `processTemplate(...)`
+    - `templateData` is normalized (`string` JSON parse -> object, invalid parse -> `{}`)
+    - falls back to raw `body` when template lookup fails or template missing
+  - Attachments:
+    - reads uploaded files from disk (`fs.readFile(file.path)`)
+    - maps to SendGrid attachment objects with base64 `content`, `filename`, `type`, `disposition: 'attachment'`
+  - Return shape:
+    - returns `{ messageId }` from response header `x-message-id` / `X-Message-Id` (normalized).
+
+- **`src/services/gmailService.js`**
+  - Alignment change:
+    - imports shared `processTemplate` from `src/utils/templateUtils.js`
+    - now returns `{ messageId }` (from Gmail API `response.data.id`) to align with SendGrid path
+  - Keeps same send signature:
+    - `sendEmail(to, subject, body, templateId, templateData, userId, files)`.
+
+- **`src/services/bulkEmailService.js`**
+  - Service dispatcher:
+    - `selectedService = service === 'sendgrid' ? 'sendgrid' : 'gmail'`
+    - sender function picked from `sendgridService.sendEmail` or `gmailService.sendEmail`
+  - Per-recipient telemetry:
+    - calls `EmailDeliveryLog.create(...)` on both success (`status: 'sent'`) and failure (`status: 'failed'`)
+    - captures `messageId` on success, and `errorMessage` on failure
+  - Current state note:
+    - still accumulates `results[]` and writes that back into `BulkJob`
+  - Activity logger:
+    - no `activityLogger` import/calls currently present in this file.
+
+#### Utils
+
+- **`src/utils/templateUtils.js`**
+  - Signature: `processTemplate(template, data = {})`
+  - Behavior: replaces all `{{ key }}` placeholders using regex per key in `data` and returns rendered string.
+
+- **`src/utils/activityLogger.js`**
+  - Current status: file is **not present** in current `src/utils/`.
+  - Therefore no current function signature, endpoint post, or payload shape can be documented from code.
+
+#### Controllers & Routes
+
+- **`src/controllers/webhookController.js`**
+  - Handler: `handleSendgridWebhook(req, res)`
+  - Signature verification:
+    - uses `@sendgrid/eventwebhook` (`EventWebhook`)
+    - verifies `x-twilio-email-event-webhook-signature` + `x-twilio-email-event-webhook-timestamp` (or canonical header helper names)
+    - public key source: `SENDGRID_WEBHOOK_PUBLIC_KEY` (normalizes escaped `\\n`)
+  - Raw body requirement:
+    - expects raw `Buffer`/string payload for signature verification and JSON parse
+  - Event -> status mapping:
+    - `delivered -> delivered`
+    - `bounce -> bounced`
+    - `dropped -> failed`
+    - `spamreport -> failed`
+    - `deferred -> deferred`
+    - `open` / `click` / unknown -> skipped
+  - MessageId matching strategy:
+    - webhook uses long `sg_message_id`; logs may store short `x-message-id`
+    - matching query uses full id OR base segment before first `.`
+    - update query: `{ recipientEmail, service: 'sendgrid', ...messageIdQuery(fullMessageId) }`.
+
+- **`src/routes/webhookRoutes.js`**
+  - Route: `POST /` -> `handleSendgridWebhook`.
+
+- **`src/index.js`**
+  - Webhook registration:
+    - `app.use('/api/webhooks/sendgrid', express.raw({ type: 'application/json', limit: '6mb' }), webhookRoutes);`
+  - Placement:
+    - mounted before global `express.json(...)`, preserving raw body for signature verification.
+
+#### Environment variables used across SendGrid implementation files
+
+- `SENDGRID_API_KEY` (`src/services/sendgridService.js`)
+- `SENDGRID_FROM_EMAIL` (`src/services/sendgridService.js`)
+- `SENDGRID_WEBHOOK_PUBLIC_KEY` (`src/controllers/webhookController.js`)
+
+#### What HCC-adam-backend needs to mirror for single-send SendGrid support
+
+- **Service file to create**
+  - Create a SendGrid single-send provider service (for example `services/sendgridService.js`) with interface matching:
+    - `sendEmail(to, subject, body, templateId, templateData, userId, files) -> { messageId }`
+  - Keep behavior parity with `emailControllerAuth2`:
+    - env validation
+    - optional DB template resolution + `processTemplate`
+    - attachment support
+    - normalized `{ messageId }` response.
+
+- **Controller to modify for service selector**
+  - Modify HCC-adam single-send controller (`controllers/emailControllers.js`) to accept/select provider (`gmail` vs `sendgrid`) and dispatch to selected service.
+  - Mirror the same fallback rule used in `emailControllerAuth2` bulk path:
+    - if service is not `sendgrid`, default to `gmail`.
+
+- **Env vars to add**
+  - Required for SendGrid sending:
+    - `SENDGRID_API_KEY`
+    - `SENDGRID_FROM_EMAIL`
+  - Add `SENDGRID_WEBHOOK_PUBLIC_KEY` only if/when webhook delivery tracking is implemented.
+
+- **Webhook for single-send**
+  - Not strictly required to send single emails.
+  - Can be deferred if initial scope is send-only.
+  - Needed later if adam-backend must track delivery lifecycle (`delivered`/`bounced`/`failed`/`deferred`) from SendGrid events.
+
+- **Schema changes**
+  - If adam-backend should persist which provider sent each single email, add a `service` field (`gmail | sendgrid`) to the relevant sent-email/audit record.
+  - If webhook tracking is added later, a delivery-log model analogous to `EmailDeliveryLog` is recommended for per-recipient status history and message-id keyed updates.
+
+### Completed: HCC-adam-backend single-send SendGrid mirror (April 2026, latest)
+
+- **Single-send provider adapter added**
+  - Added [`services/sendgridService.js`](services/sendgridService.js) with contract:
+    - `sendEmail(to, subject, body, templateId, templateData, userId, files) -> { messageId }`
+  - Uses `@sendgrid/mail`, validates `SENDGRID_API_KEY` and `SENDGRID_FROM_EMAIL`, supports attachments, and returns normalized `messageId` from SendGrid headers.
+
+- **Shared template resolver utility added**
+  - Added [`utils/templateUtils.js`](utils/templateUtils.js) with:
+    - `processTemplate(template, data = {})`
+  - Replaces `{{ key }}` placeholders for runtime merge-tag rendering.
+
+- **Template source aligned to shared `templates` collection**
+  - Added lightweight read-only model [`models/templateModel.js`](models/templateModel.js) using:
+    - `const Template = mongoose.model('Template', templateSchema);`
+  - This aligns with emailControllerAuth2 template IDs and resolves from the same MongoDB collection (`templates`).
+  - Legacy [`models/emailTemplateModel.js`](models/emailTemplateModel.js) and its CRUD routes remain untouched.
+
+- **Controller dispatch added for single-send**
+  - Updated [`controllers/emailControllers.js`](controllers/emailControllers.js) `POST /api/appGmail/send/:id` flow to:
+    - accept `service` from request body
+    - dispatch `sendgrid` only when `service === 'sendgrid'`
+    - default to Gmail for all other values
+  - Existing route path and success response shape remain unchanged.
+
+- **Template resolution updated for both providers**
+  - Updated single-send template lookup to use `Template.findById(templateId)` and `processTemplate(...)` in:
+    - [`controllers/emailControllers.js`](controllers/emailControllers.js) (Gmail path)
+    - [`services/sendgridService.js`](services/sendgridService.js) (SendGrid path)
+  - Operational note:
+    - when `templateId` is provided but not found and no raw `body` is provided, provider send fails due to empty content (expected behavior).
+
+- **Scope intentionally still deferred**
+  - No SendGrid webhook handling added in adam-backend for single-send.
+  - No delivery-log model added in adam-backend for single-send.
+  - No `service` schema field added to adam-backend records in this phase.
+
+### Completed: Phase 4A — Single-send SendGrid delivery telemetry (HCC-adam-backend) (April 2026, latest)
+
+- **`models/emailDeliveryLogModel.js` added** — mirrors `emailControllerAuth2` schema with two differences:
+  - `jobId` is `required: false` (single sends have no bulk job reference)
+  - `source` field added: `enum: ['bulk', 'single']`, default `'single'`
+  - Uses `{ timestamps: true }` schema option instead of manual `createdAt`/`updatedAt` fields and `pre('save')` hook
+
+- **`services/sendgridService.js` updated** — after successful send, creates `EmailDeliveryLog` with:
+  - `source: 'single'`
+  - `status: 'sent'`
+  - `messageId` from SendGrid response header
+  - `sentAt: new Date()`
+  - `jobId` intentionally omitted
+
+- **Webhook architecture decision** — single SendGrid webhook URL points to `emailControllerAuth2`. Both bulk and single send logs live in the same shared `emaildeliverylogs` collection on Atlas. The `source` field distinguishes record origin. No duplicate webhook calls — one event fires once, updates the correct record by `messageId` matching regardless of source.
+
+- **`emailDeliveryLogModel.js` in `emailControllerAuth2` updated** — added `source` field: `enum: ['bulk', 'single']`, default `'bulk'`. Bulk send log creation in `bulkEmailService.js` explicitly sets `source: 'bulk'`.
+
+- **End-to-end flow verified via MongoDB query:**
+  - `sentAt` written by adam-backend `sendgridService.js` on send
+  - `deliveredAt` written 2 seconds later by `emailControllerAuth2` webhook handler
+  - Single record per send, created on send, updated in place on delivery
+  - `source: 'single'` confirmed on latest record
+
+- **Scope intentionally deferred:**
+  - No separate webhook endpoint in adam-backend (not needed — shared collection + source field handles routing)
+  - No Gmail delivery tracking (Gmail does not support webhooks)
+  - No activity logging wired yet (Step 5a, next phase)
