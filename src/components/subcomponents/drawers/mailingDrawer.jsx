@@ -153,6 +153,7 @@ const SendEmailViaGmail = ({ open, handleClose, email = "", item, recipientName 
   const [body, setBody] = useState("");
   const [to, setTo] = useState([]);
   const [subject, setSubject] = useState("");
+  const [service, setService] = useState("gmail");
   const [templateId, setTemplateId] = useState("");
   const [templateOptions, setTemplateOptions] = useState([]);
   const [attachments, setAttachments] = useState([]);
@@ -324,6 +325,18 @@ const SendEmailViaGmail = ({ open, handleClose, email = "", item, recipientName 
             />
           </div>
 
+          <div>
+            <label style={labelStyle}>Service</label>
+            <select
+              value={service}
+              onChange={(e) => setService(e.target.value)}
+              style={{ ...inputStyle, cursor: "pointer" }}
+            >
+              <option value="gmail">Gmail</option>
+              <option value="sendgrid">SendGrid</option>
+            </select>
+          </div>
+
           {/* Template picker */}
           <div>
             <label style={labelStyle}>Template (optional)</label>
@@ -368,7 +381,9 @@ const SendEmailViaGmail = ({ open, handleClose, email = "", item, recipientName 
           background: "rgba(20,15,43,0.4)",
         }}>
           <div style={{ fontSize: 12, color: "#6F618F" }}>
-            {to.length > 0 ? `Sending to ${to[0]}${to.length > 1 ? ` +${to.length - 1} more` : ""}` : "No recipient yet"}
+            {to.length > 0
+              ? `Sending via ${service === "sendgrid" ? "SendGrid" : "Gmail"} to ${to[0]}${to.length > 1 ? ` +${to.length - 1} more` : ""}`
+              : "No recipient yet"}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button
