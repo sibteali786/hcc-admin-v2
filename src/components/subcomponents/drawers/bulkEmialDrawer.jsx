@@ -393,6 +393,7 @@ export default function SendBulkEmailViaGmail({
   const [selectedContactListId, setSelectedContactListId] = useState("");
   const [listRecipients, setListRecipients] = useState([]);
   const [sending, setSending] = useState(false);
+  const [testEmail, setTestEmail] = useState("");
 
   const hccEmail = user?.user?.hccEmail || " ";
   const id = user?.user?._id;
@@ -555,11 +556,71 @@ export default function SendBulkEmailViaGmail({
   };
 
   const handleSendTest = async () => {
-    if (!hccEmail || hccEmail.trim() === " ") {
-      Swal.fire("Warning", "No sender email found", "warning");
+    if (!id) {
+      Swal.fire("Error", "User not found in session", "error");
       return;
     }
-    Swal.fire("Info", `Test email would be sent to ${hccEmail}`, "info");
+    if (!subject.trim()) {
+      Swal.fire("Warning", "Please add a subject before sending a test", "warning");
+      return;
+    }
+    if (!body.trim() && !templateId) {
+      Swal.fire(
+        "Warning",
+        "Please add a body or select a template before sending a test",
+        "warning",
+      );
+      return;
+    }
+
+    const resolvedTestEmail = testEmail.trim() || hccEmail?.trim();
+    if (!resolvedTestEmail || resolvedTestEmail === " ") {
+      Swal.fire("Warning", "No test email address found", "warning");
+      return;
+    }
+
+    setSending(true);
+    try {
+      const templateData2 = {
+        title: "Good Day From Hill Country",
+        recipientName: resolvedTestEmail,
+        body,
+        additionalText: "Thank You for your Time",
+        senderName,
+        senderTitle,
+        companyName: "Hill Country Coders",
+        companyAddress: "Cedar Park Texas USA",
+        companyWebsite: "https://www.hillcountrycoders.com",
+      };
+
+      const formData = new FormData();
+      formData.append("recipients", JSON.stringify([resolvedTestEmail]));
+      formData.append("subject", `[TEST] ${subject}`);
+      formData.append("body", body);
+      formData.append("service", service);
+      if (templateId?.value || templateId)
+        formData.append("templateId", templateId?.value || templateId);
+      formData.append("templateData", JSON.stringify(templateData2));
+      attachments.forEach((file) => formData.append("attachments", file));
+
+      await axios.post(
+        `${apiPath.prodPath3}/api/bulkEmail/sendBulkEmail/${id}`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } },
+      );
+
+      Swal.fire({
+        icon: "success",
+        text: `Test email sent to ${resolvedTestEmail}`,
+        timer: 2000,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      console.error(error);
+      Swal.fire("Error", "Failed to send test email", "error");
+    } finally {
+      setSending(false);
+    }
   };
 
   const inputStyle = {
@@ -1035,6 +1096,7 @@ export default function SendBulkEmailViaGmail({
                 setTo([]);
                 setSelectedContactListId("");
                 setListRecipients([]);
+                setTestEmail("");
                 handleClose();
               }}
               style={{
@@ -1050,6 +1112,27 @@ export default function SendBulkEmailViaGmail({
             >
               Cancel
             </button>
+            <input
+              type="email"
+              value={testEmail}
+              onChange={(e) => setTestEmail(e.target.value)}
+              placeholder={hccEmail || "test@email.com"}
+              style={{
+                background: "rgba(20,15,43,0.7)",
+                border: "1px solid rgba(69,44,149,0.5)",
+                borderRadius: 10,
+                padding: "8px 12px",
+                color: "#F5F0FF",
+                fontSize: 12.5,
+                outline: "none",
+                width: 200,
+                fontFamily: "inherit",
+              }}
+              onFocus={(e) => (e.target.style.borderColor = "#B797FF")}
+              onBlur={(e) =>
+                (e.target.style.borderColor = "rgba(69,44,149,0.5)")
+              }
+            />
             <button
               onClick={handleSendTest}
               style={{
@@ -1063,7 +1146,9 @@ export default function SendBulkEmailViaGmail({
                 cursor: "pointer",
               }}
             >
-              Send test to me
+              {testEmail.trim()
+                ? `Send test to ${testEmail.trim()}`
+                : "Send test to me"}
             </button>
             <button
               onClick={handleUpload}

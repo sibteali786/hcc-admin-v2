@@ -155,9 +155,11 @@ const SendEmailViaGmail = ({ open, handleClose, email = "", item, recipientName 
   const [subject, setSubject] = useState("");
   const [service, setService] = useState("gmail");
   const [templateId, setTemplateId] = useState("");
+  const [templateBody, setTemplateBody] = useState("");
   const [templateOptions, setTemplateOptions] = useState([]);
   const [attachments, setAttachments] = useState([]);
   const [sending, setSending] = useState(false);
+  const [testEmail, setTestEmail] = useState("");
 
   const hccEmail = user?.user?.hccEmail || "";
   const id = user?.user?._id;
@@ -186,6 +188,69 @@ const SendEmailViaGmail = ({ open, handleClose, email = "", item, recipientName 
     }
     loadTemplates();
   }, [open]);
+
+  const handleSendTest = async () => {
+    if (!id) {
+      Swal.fire("Error", "User not found", "error");
+      return;
+    }
+    if (!subject.trim()) {
+      Swal.fire("Warning", "Subject is required for test", "warning");
+      return;
+    }
+    if (!body.trim() && !templateId) {
+      Swal.fire("Warning", "Please add a body or select a template", "warning");
+      return;
+    }
+
+    const resolvedTestEmail = testEmail.trim() || hccEmail?.trim();
+    if (!resolvedTestEmail) {
+      Swal.fire("Warning", "No test email address found", "warning");
+      return;
+    }
+
+    setSending(true);
+    try {
+      const formData = new FormData();
+      formData.append("to", resolvedTestEmail);
+      formData.append("subject", `[TEST] ${subject}`);
+      formData.append("body", body);
+      formData.append("service", service);
+      if (templateId) formData.append("templateId", templateId);
+      formData.append(
+        "templateData",
+        JSON.stringify({
+          title: "Good Day From Hill Country",
+          recipientName: resolvedTestEmail,
+          body,
+          additionalText: "Thank You for your Time",
+          senderName,
+          senderTitle,
+          companyName: "Hill Country Coders",
+          companyAddress: "Cedar Park Texas USA",
+          companyWebsite: "https://www.hillcountrycoders.com",
+        }),
+      );
+      attachments.forEach((file) => formData.append("attachments", file));
+
+      await axios.post(`${apiPath.prodPath}/api/appGmail/send/${id}`, formData);
+      Swal.fire({
+        icon: "success",
+        text: `Test sent to ${resolvedTestEmail}`,
+        timer: 2000,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      console.error(error);
+      Swal.fire(
+        "Error",
+        error?.response?.data?.message || "Failed to send test",
+        "error",
+      );
+    } finally {
+      setSending(false);
+    }
+  };
 
   const handleSend = async () => {
     if (!id) { Swal.fire("Error", "User not found", "error"); return; }
@@ -224,6 +289,21 @@ const SendEmailViaGmail = ({ open, handleClose, email = "", item, recipientName 
       setSending(false);
     }
   };
+
+  async function fetchTemplateBody(templateIdValue) {
+    if (!templateIdValue) {
+      setTemplateBody("");
+      return;
+    }
+    try {
+      const r = await axios.get(
+        `${apiPath.prodPath3}/api/templates/${templateIdValue}`,
+      );
+      setTemplateBody(r.data?.data?.body || "");
+    } catch (err) {
+      setTemplateBody("");
+    }
+  }
 
   const inputStyle = {
     background: "rgba(20,15,43,0.7)", border: "1px solid rgba(69,44,149,0.5)",
@@ -296,81 +376,189 @@ const SendEmailViaGmail = ({ open, handleClose, email = "", item, recipientName 
         </div>
 
         {/* Body */}
-        <div style={{ padding: "20px 24px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ display: "flex", minHeight: 0, maxHeight: "calc(90vh - 124px)" }}>
+          <div
+            style={{
+              flex: 1,
+              padding: "20px 24px",
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              borderRight: "1px solid rgba(127,86,217,0.2)",
+              minWidth: 0,
+            }}
+          >
+            {/* From */}
+            <div>
+              <label style={labelStyle}>From</label>
+              <div style={{ ...inputStyle, color: "#A99BD4", cursor: "default" }}>{hccEmail}</div>
+            </div>
 
-          {/* From */}
-          <div>
-            <label style={labelStyle}>From</label>
-            <div style={{ ...inputStyle, color: "#A99BD4", cursor: "default" }}>{hccEmail}</div>
+            {/* To */}
+            <div>
+              <label style={labelStyle}>To</label>
+              <ToField
+                initialEmail={email}
+                onChange={(list) => setTo(list)}
+              />
+            </div>
+
+            {/* Subject */}
+            <div>
+              <label style={labelStyle}>Subject</label>
+              <input
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                placeholder="Subject…"
+                style={inputStyle}
+                onFocus={(e) => e.target.style.borderColor = "#B797FF"}
+                onBlur={(e) => e.target.style.borderColor = "rgba(69,44,149,0.5)"}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Service</label>
+              <select
+                value={service}
+                onChange={(e) => setService(e.target.value)}
+                style={{ ...inputStyle, cursor: "pointer" }}
+              >
+                <option value="gmail">Gmail</option>
+                <option value="sendgrid">SendGrid</option>
+              </select>
+            </div>
+
+            {/* Template picker */}
+            <div>
+              <label style={labelStyle}>Template (optional)</label>
+              <select
+                value={templateId}
+                onChange={(e) => {
+                  setTemplateId(e.target.value);
+                  fetchTemplateBody(e.target.value);
+                }}
+                style={{ ...inputStyle, cursor: "pointer" }}
+              >
+                <option value="">— No template —</option>
+                {templateOptions.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Body */}
+            <div>
+              <label style={labelStyle}>Body</label>
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder={templateId ? "Leave blank to use template, or write an override…" : "Write your message here…"}
+                rows={6}
+                style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }}
+                onFocus={(e) => e.target.style.borderColor = "#B797FF"}
+                onBlur={(e) => e.target.style.borderColor = "rgba(69,44,149,0.5)"}
+              />
+            </div>
+
+            {/* Attachments */}
+            <div>
+              <label style={labelStyle}>Attachments</label>
+              <AttachmentZone attachments={attachments} setAttachments={setAttachments} />
+            </div>
           </div>
 
-          {/* To */}
-          <div>
-            <label style={labelStyle}>To</label>
-            <ToField
-              initialEmail={email}
-              onChange={(list) => setTo(list)}
-            />
-          </div>
-
-          {/* Subject */}
-          <div>
-            <label style={labelStyle}>Subject</label>
-            <input
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              placeholder="Subject…"
-              style={inputStyle}
-              onFocus={(e) => e.target.style.borderColor = "#B797FF"}
-              onBlur={(e) => e.target.style.borderColor = "rgba(69,44,149,0.5)"}
-            />
-          </div>
-
-          <div>
-            <label style={labelStyle}>Service</label>
-            <select
-              value={service}
-              onChange={(e) => setService(e.target.value)}
-              style={{ ...inputStyle, cursor: "pointer" }}
-            >
-              <option value="gmail">Gmail</option>
-              <option value="sendgrid">SendGrid</option>
-            </select>
-          </div>
-
-          {/* Template picker */}
-          <div>
-            <label style={labelStyle}>Template (optional)</label>
-            <select
-              value={templateId}
-              onChange={(e) => setTemplateId(e.target.value)}
-              style={{ ...inputStyle, cursor: "pointer" }}
-            >
-              <option value="">— No template —</option>
-              {templateOptions.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Body */}
-          <div>
-            <label style={labelStyle}>Body</label>
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder={templateId ? "Leave blank to use template, or write an override…" : "Write your message here…"}
-              rows={6}
-              style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }}
-              onFocus={(e) => e.target.style.borderColor = "#B797FF"}
-              onBlur={(e) => e.target.style.borderColor = "rgba(69,44,149,0.5)"}
-            />
-          </div>
-
-          {/* Attachments */}
-          <div>
-            <label style={labelStyle}>Attachments</label>
-            <AttachmentZone attachments={attachments} setAttachments={setAttachments} />
+          <div
+            style={{
+              width: 320,
+              flexShrink: 0,
+              display: "flex",
+              flexDirection: "column",
+              background: "rgba(20,15,43,0.4)",
+              overflowY: "auto",
+              padding: "20px 20px",
+              gap: 18,
+            }}
+          >
+            <div>
+              <label style={labelStyle}>Live Preview</label>
+              <div
+                style={{
+                  background: "#fff",
+                  borderRadius: 10,
+                  overflow: "hidden",
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+                  minHeight: 200,
+                  position: "relative",
+                }}
+              >
+                {body || templateBody ? (
+                  <>
+                    <div
+                      style={{
+                        width: "100%",
+                        height: 220,
+                        overflow: "hidden",
+                        position: "relative",
+                      }}
+                    >
+                      <iframe
+                        srcDoc={body || templateBody || ""}
+                        style={{
+                          width: "600px",
+                          height: "800px",
+                          border: "none",
+                          display: "block",
+                          transform: "scale(0.46)",
+                          transformOrigin: "top left",
+                          pointerEvents: "none",
+                        }}
+                        title="Preview"
+                        sandbox="allow-same-origin"
+                      />
+                    </div>
+                    <button
+                      onClick={() =>
+                        window.open(
+                          URL.createObjectURL(
+                            new Blob([body || templateBody], {
+                              type: "text/html",
+                            }),
+                          ),
+                          "_blank",
+                        )
+                      }
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        padding: "8px",
+                        background: "rgba(127,86,217,0.15)",
+                        border: "none",
+                        borderTop: "1px solid rgba(127,86,217,0.2)",
+                        color: "#B797FF",
+                        fontSize: 11.5,
+                        cursor: "pointer",
+                        fontWeight: 500,
+                      }}
+                    >
+                      ↗ Open full preview
+                    </button>
+                  </>
+                ) : (
+                  <div
+                    style={{
+                      padding: 24,
+                      textAlign: "center",
+                      color: "#999",
+                      fontSize: 12,
+                    }}
+                  >
+                    <div style={{ fontSize: 24, marginBottom: 8 }}>✦</div>
+                    Preview appears once you add a body or select a template
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -388,7 +576,7 @@ const SendEmailViaGmail = ({ open, handleClose, email = "", item, recipientName 
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button
-              onClick={() => { setBody(""); setSubject(""); setTemplateId(""); setAttachments([]); setTo([]); handleClose(); }}
+              onClick={() => { setBody(""); setSubject(""); setTemplateId(""); setAttachments([]); setTo([]); setTestEmail(""); handleClose(); }}
               style={{
                 padding: "8px 16px", borderRadius: 10, border: "1px solid rgba(127,86,217,0.35)",
                 background: "rgba(127,86,217,0.08)", color: "#E1C9FF",
@@ -396,6 +584,40 @@ const SendEmailViaGmail = ({ open, handleClose, email = "", item, recipientName 
               }}
             >
               Cancel
+            </button>
+            <input
+              type="email"
+              value={testEmail}
+              onChange={(e) => setTestEmail(e.target.value)}
+              placeholder={hccEmail || "test@email.com"}
+              style={{
+                background: "rgba(20,15,43,0.7)",
+                border: "1px solid rgba(69,44,149,0.5)",
+                borderRadius: 10,
+                padding: "8px 12px",
+                color: "#F5F0FF",
+                fontSize: 12.5,
+                outline: "none",
+                width: 200,
+                fontFamily: "inherit",
+              }}
+              onFocus={(e) => e.target.style.borderColor = "#B797FF"}
+              onBlur={(e) => e.target.style.borderColor = "rgba(69,44,149,0.5)"}
+            />
+            <button
+              onClick={handleSendTest}
+              disabled={sending}
+              style={{
+                padding: "8px 16px", borderRadius: 10,
+                border: "1px solid rgba(127,86,217,0.35)",
+                background: "rgba(127,86,217,0.08)", color: "#E1C9FF",
+                fontSize: 13, fontWeight: 500,
+                cursor: sending ? "not-allowed" : "pointer",
+              }}
+            >
+              {testEmail.trim()
+                ? `Send test to ${testEmail.trim()}`
+                : "Send test to me"}
             </button>
             <button
               onClick={handleSend}
