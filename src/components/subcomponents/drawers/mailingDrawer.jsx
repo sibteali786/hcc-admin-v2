@@ -198,6 +198,7 @@ const SendEmailViaGmail = ({ open, handleClose, email = "", item, recipientName 
       formData.append("to", to[0]); // single email send takes first recipient
       formData.append("subject", subject);
       formData.append("body", body);
+      formData.append("service", service);
       if (templateId) formData.append("templateId", templateId);
       formData.append("templateData", JSON.stringify({
         title: "Good Day From Hill Country",
