@@ -884,6 +884,39 @@ curl -i "$BASE_URL/api/contact-lists/$USER_ID/not-a-valid-objectid"
     - when `open && preselectedListId`, set `selectedContactListId(preselectedListId)`
   - Result: opening from a Contact List row auto-selects that list in the bulk-email compose drawer without extra user selection.
 
+### Completed: Phase 3I — Test-send override + single-mail live preview parity (April 2026, latest)
+
+- **Custom test-email override added to both compose drawers**:
+  - Updated [`src/components/subcomponents/drawers/bulkEmialDrawer.jsx`](src/components/subcomponents/drawers/bulkEmialDrawer.jsx)
+  - Updated [`src/components/subcomponents/drawers/mailingDrawer.jsx`](src/components/subcomponents/drawers/mailingDrawer.jsx)
+  - Added local `testEmail` state and footer input (`type="email"`) with placeholder fallback to logged-in `hccEmail`.
+  - Test-send recipient resolution now follows:
+    - `resolvedTestEmail = testEmail.trim() || hccEmail?.trim()`
+  - Empty custom input continues to send tests to default user email (`hccEmail`); typed value overrides destination for test sends.
+  - "Send test to me" button labels are now dynamic:
+    - `Send test to ${testEmail.trim()}` when custom input exists.
+  - Cancel actions now reset `testEmail` with other compose fields.
+
+- **Test-send behavior in bulk drawer now performs real send** ([`src/components/subcomponents/drawers/bulkEmialDrawer.jsx`](src/components/subcomponents/drawers/bulkEmialDrawer.jsx)):
+  - Uses existing bulk endpoint `POST ${apiPath.prodPath3}/api/bulkEmail/sendBulkEmail/:id`.
+  - Adds `[TEST]` prefix to subject.
+  - Sends to single-recipient array containing resolved test email.
+  - Reuses existing `sending` state to disable action buttons during request.
+
+- **Single-mail drawer now has bulk-style template live preview parity** ([`src/components/subcomponents/drawers/mailingDrawer.jsx`](src/components/subcomponents/drawers/mailingDrawer.jsx)):
+  - Added `templateBody` state and `fetchTemplateBody(templateIdValue)` using:
+    - `GET ${apiPath.prodPath3}/api/templates/:templateId`
+  - Template picker now triggers both:
+    - `setTemplateId(...)`
+    - `fetchTemplateBody(...)`
+  - Compose body section restructured to two-panel layout:
+    - Left: existing compose form controls
+    - Right: `Live Preview` card with iframe rendering
+  - Preview source fallback matches bulk drawer:
+    - `body || templateBody || ""`
+  - Added `Open full preview` action (`Blob` + `window.open`) for full-size HTML inspection.
+  - Existing single-send and test-send API payload logic remains unchanged aside from preview/template-body wiring.
+
 ### Completed: SendGrid Implementation Reference — emailControllerAuth2 (for HCC-adam-backend mirror)
 
 This section documents the **actual current implementation** in `emailControllerAuth2` from code.
