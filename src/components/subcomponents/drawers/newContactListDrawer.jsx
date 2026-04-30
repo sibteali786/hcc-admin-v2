@@ -78,6 +78,9 @@ export default function NewContactListDrawer({ open, handleClose, refreshData })
           email: client.email,
           name: client.clientName || "",
           clientRefId: client._id,
+          company: client.companyName || "",
+          firstName: (client.clientName || "").split(" ")[0] || "",
+          lastName: (client.clientName || "").split(" ").slice(1).join(" ") || "",
         },
       };
     });

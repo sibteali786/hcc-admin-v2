@@ -235,7 +235,14 @@ updatedAt       Date
 name            String required
 description     String
 ownerId         ObjectId ref User
-members         Array of { email: String, name: String, clientRefId?: String }
+members         Array of {
+                  email: String,
+                  name: String,
+                  firstName?: String (default ''),
+                  lastName?: String (default ''),
+                  company?: String (default ''),
+                  clientRefId?: String
+                }
 filters         Mixed (optional saved filter query for dynamic lists)
 createdAt       Date
 updatedAt       Date
@@ -616,7 +623,7 @@ Bulk send with `templateId` resolves from DB. Body fallback preserved.
 ### Completed: Phase 3A — Contact Lists CRUD
 
 - **Auth model change (param-based owner context):** contact list endpoints now use `:userId` route params for ownership scope (no session/cookie requirement), aligned with `sendBulkEmail/:id`.
-- **Contact List model** ([`src/models/contactListModel.js`](src/models/contactListModel.js)): `name`, `description`, `ownerId`, `members` (`email`, `name`, `clientRefId`), `filters`, timestamps; indexes on `ownerId` and `ownerId + name`; email normalization to lowercase.
+- **Contact List model** ([`src/models/contactListModel.js`](src/models/contactListModel.js)): `name`, `description`, `ownerId`, `members` (`email`, `name`, `firstName`, `lastName`, `company`, `clientRefId`), `filters`, timestamps; indexes on `ownerId` and `ownerId + name`; email normalization to lowercase.
 - **Contact List controller** ([`src/controllers/contactListController.js`](src/controllers/contactListController.js)): `createList`, `getAllLists`, `getList`, `getListMembers`, `updateList`, `deleteList` — all ownership-scoped to `req.params.userId`.
 - **Contact List routes** ([`src/routes/contactListRoutes.js`](src/routes/contactListRoutes.js)): mounted at `/api/contact-lists` (wired in [`src/index.js`](src/index.js)); routes are param-based: `/:userId`, `/:userId/:id`, and `/:userId/:id/members`.
 - **Note:** Manual API validation now uses route param ownership (`:userId`) and does not require session token/cookie headers.
@@ -979,7 +986,11 @@ This section documents the **actual current implementation** in `emailController
 
 - **`src/utils/templateUtils.js`**
   - Signature: `processTemplate(template, data = {})`
-  - Behavior: replaces all `{{ key }}` placeholders using regex per key in `data` and returns rendered string.
+  - Behavior:
+    - replaces all `{{ key }}` placeholders using regex per key in `data`
+    - post-pass fallback mapping:
+      - unresolved `{{bookingLink}}` -> `#`
+      - any other unresolved `{{tag}}` -> empty string
 
 - **`src/utils/activityLogger.js`**
   - Current status: file is **not present** in current `src/utils/`.
@@ -1118,3 +1129,42 @@ This section documents the **actual current implementation** in `emailController
   - No separate webhook endpoint in adam-backend (not needed — shared collection + source field handles routing)
   - No Gmail delivery tracking (Gmail does not support webhooks)
   - No activity logging wired yet (Step 5a, next phase)
+
+### Completed: Frontend contact-list recipient data alignment (hcc-admin-v2) (April 2026, latest)
+
+- **Contact list member payload expanded in list builder**
+  - Updated `src/components/subcomponents/drawers/newContactListDrawer.jsx` `toggleClient` to store full member metadata in `selectedMap`:
+    - `email`
+    - `name`
+    - `clientRefId`
+    - `company`
+    - `firstName`
+    - `lastName`
+  - `firstName`/`lastName` now derive from `clientName` with safe empty-string fallbacks.
+
+- **Bulk drawer state renamed to preserve full member objects**
+  - Updated `src/components/subcomponents/drawers/bulkEmialDrawer.jsx`:
+    - replaced `listRecipients` with `listMembers`
+    - `loadMembers` (`GET /api/contact-lists/:userId/:id/members`) now stores full objects via:
+      - `setListMembers(members.filter((m) => m?.email))`
+  - Recipient initialization now maps list members to emails:
+    - `...listMembers.map((m) => m.email).filter(Boolean)`
+
+- **Bulk send payload switched from shared template object to per-recipient data**
+  - In `handleUpload`:
+    - removed single shared `templateData` object pattern
+    - builds `recipientEmails` from `to`
+    - builds `recipientsData` aligned per recipient with fallback resolution:
+      - member match by email in `listMembers`
+      - `firstName` fallback from local-part of email
+      - includes `lastName`, `company`, `senderName`, `senderTitle`, `bookingLink`
+    - sends:
+      - `recipients`
+      - `recipientsData`
+  - In `handleSendTest`:
+    - uses single-element `recipientsData` array for the resolved test email
+    - sends `recipientsData` instead of shared template payload
+
+- **Behavioral intent**
+  - Merge-tag and personalization data is now recipient-scoped rather than campaign-scoped.
+  - Bulk and test sends follow the same structured recipient data contract for downstream template processing.

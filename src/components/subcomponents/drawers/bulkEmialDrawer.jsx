@@ -391,7 +391,7 @@ export default function SendBulkEmailViaGmail({
   const [service, setService] = useState("gmail");
   const [contactLists, setContactLists] = useState([]);
   const [selectedContactListId, setSelectedContactListId] = useState("");
-  const [listRecipients, setListRecipients] = useState([]);
+  const [listMembers, setListMembers] = useState([]);
   const [sending, setSending] = useState(false);
   const [testEmail, setTestEmail] = useState("");
 
@@ -471,9 +471,9 @@ export default function SendBulkEmailViaGmail({
           `${apiPath.prodPath3}/api/contact-lists/${id}/${selectedContactListId}/members`,
         );
         const members = r.data?.data?.members || [];
-        setListRecipients(members.map((m) => m?.email).filter(Boolean));
+        setListMembers(members.filter((m) => m?.email));
       } catch (err) {
-        setListRecipients([]);
+        setListMembers([]);
         Swal.fire("Error", "Failed to load members for selected list", "error");
       }
     }
@@ -502,24 +502,24 @@ export default function SendBulkEmailViaGmail({
 
     setSending(true);
     try {
-      const firstRecipient = Array.isArray(to) ? to[0] : to;
-      const templateData2 = {
-        title: "Good Day From Hill Country",
-        recipientName: firstRecipient || "",
-        body,
-        additionalText: "Thank You for your Time",
-        senderName,
-        senderTitle,
-        companyName: "Hill Country Coders",
-        companyAddress: "Cedar Park Texas USA",
-        companyWebsite: "https://www.hillcountrycoders.com",
-      };
+      const recipientEmails = Array.isArray(to) ? to : [to];
+      const recipientsWithData = recipientEmails.map((email) => {
+        const member = listMembers.find(
+          (m) => (m.email || "").toLowerCase() === String(email).toLowerCase(),
+        );
+        return {
+          email,
+          firstName: member?.firstName || String(email).split("@")[0],
+          lastName: member?.lastName || "",
+          company: member?.company || "",
+          senderName,
+          senderTitle,
+          bookingLink: "#",
+        };
+      });
 
       const formData = new FormData();
-      formData.append(
-        "recipients",
-        Array.isArray(to) ? JSON.stringify(to) : to,
-      );
+      formData.append("recipients", JSON.stringify(recipientEmails));
       formData.append("subject", subject);
       formData.append("body", body);
       formData.append("service", service);
@@ -527,7 +527,7 @@ export default function SendBulkEmailViaGmail({
         formData.append("templateId", templateId?.value || templateId);
       if (selectedContactListId)
         formData.append("contactListId", selectedContactListId);
-      formData.append("templateData", JSON.stringify(templateData2));
+      formData.append("recipientsData", JSON.stringify(recipientsWithData));
       attachments.forEach((file) => formData.append("attachments", file));
 
       await axios.post(
@@ -545,7 +545,7 @@ export default function SendBulkEmailViaGmail({
       setAttachments([]);
       setTo([]);
       setSelectedContactListId("");
-      setListRecipients([]);
+      setListMembers([]);
       handleClose();
     } catch (error) {
       console.error(error);
@@ -581,17 +581,17 @@ export default function SendBulkEmailViaGmail({
 
     setSending(true);
     try {
-      const templateData2 = {
-        title: "Good Day From Hill Country",
-        recipientName: resolvedTestEmail,
-        body,
-        additionalText: "Thank You for your Time",
-        senderName,
-        senderTitle,
-        companyName: "Hill Country Coders",
-        companyAddress: "Cedar Park Texas USA",
-        companyWebsite: "https://www.hillcountrycoders.com",
-      };
+      const recipientsWithData = [
+        {
+          email: resolvedTestEmail,
+          firstName: resolvedTestEmail.split("@")[0],
+          lastName: "",
+          company: "",
+          senderName,
+          senderTitle,
+          bookingLink: "#",
+        },
+      ];
 
       const formData = new FormData();
       formData.append("recipients", JSON.stringify([resolvedTestEmail]));
@@ -600,7 +600,7 @@ export default function SendBulkEmailViaGmail({
       formData.append("service", service);
       if (templateId?.value || templateId)
         formData.append("templateId", templateId?.value || templateId);
-      formData.append("templateData", JSON.stringify(templateData2));
+      formData.append("recipientsData", JSON.stringify(recipientsWithData));
       attachments.forEach((file) => formData.append("attachments", file));
 
       await axios.post(
@@ -791,7 +791,7 @@ export default function SendBulkEmailViaGmail({
                 contacts={contacts}
                 initialRecipients={[
                   ...(newClients || []).map((c) => c.email).filter(Boolean),
-                  ...listRecipients,
+                  ...listMembers.map((m) => m.email).filter(Boolean),
                 ]}
                 onChange={(list) => setTo(list.map(String))}
               />
@@ -1095,7 +1095,7 @@ export default function SendBulkEmailViaGmail({
                 setAttachments([]);
                 setTo([]);
                 setSelectedContactListId("");
-                setListRecipients([]);
+                setListMembers([]);
                 setTestEmail("");
                 handleClose();
               }}
